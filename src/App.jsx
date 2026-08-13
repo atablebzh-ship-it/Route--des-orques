@@ -224,9 +224,124 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     <div
       ref={mapElRef}
       style={{ width: "100%", height: "320px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}
-    />);
+    />
+  );
 }
 
+const LANGS = [
+  { code: "fr", flag: "🇫🇷" },
+  { code: "en", flag: "🇬🇧" },
+  { code: "es", flag: "🇪🇸" },
+  { code: "pt", flag: "🇵🇹" },
+];
+
+const TRANSLATIONS = {
+  fr: {
+    loginTagline: "Connexion par lien magique — pas de mot de passe à retenir.",
+    codeSent: (email) => `Code envoyé à ${email}. Saisis-le ci-dessous.`,
+    codeLabel: "Code de connexion",
+    validateCode: "Valider le code",
+    useOtherEmail: "Utiliser une autre adresse",
+    emailLabel: "Adresse e-mail",
+    receiveLink: "Recevoir le lien de connexion",
+    onboardingTagline: "Rejoins les plaisanciers en route pour partager position, alertes orques et former des convois.",
+    pseudoLabel: "Pseudo",
+    boatNameLabel: "Nom du bateau",
+    positionLabel: "Position actuelle",
+    locateMe: "Me localiser",
+    joinRoute: "Rejoindre la route",
+    onboardingDisclaimer: "Ton pseudo, ton bateau et ta position sont visibles par les autres plaisanciers connectés à cette appli.",
+    tabCarte: "Carte",
+    tabConvois: "Convois",
+    tabAlerts: "Alertes",
+    tabChat: "Chat",
+    tabProfile: "Moi",
+    activeLabel: (n) => `${n} actif${n > 1 ? "s" : ""}`,
+  },
+  en: {
+    loginTagline: "Sign in with a magic link — no password to remember.",
+    codeSent: (email) => `Code sent to ${email}. Enter it below.`,
+    codeLabel: "Sign-in code",
+    validateCode: "Validate code",
+    useOtherEmail: "Use another address",
+    emailLabel: "Email address",
+    receiveLink: "Receive sign-in link",
+    onboardingTagline: "Join fellow sailors to share position, orca alerts, and form convoys.",
+    pseudoLabel: "Nickname",
+    boatNameLabel: "Boat name",
+    positionLabel: "Current position",
+    locateMe: "Locate me",
+    joinRoute: "Join the route",
+    onboardingDisclaimer: "Your nickname, boat, and position are visible to other sailors connected to this app.",
+    tabCarte: "Map",
+    tabConvois: "Convoys",
+    tabAlerts: "Alerts",
+    tabChat: "Chat",
+    tabProfile: "Me",
+    activeLabel: (n) => `${n} active`,
+  },
+  es: {
+    loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
+    codeSent: (email) => `Código enviado a ${email}. Introdúcelo a continuación.`,
+    codeLabel: "Código de acceso",
+    validateCode: "Validar código",
+    useOtherEmail: "Usar otra dirección",
+    emailLabel: "Correo electrónico",
+    receiveLink: "Recibir enlace de acceso",
+    onboardingTagline: "Únete a los navegantes para compartir posición, alertas de orcas y formar convoyes.",
+    pseudoLabel: "Apodo",
+    boatNameLabel: "Nombre del barco",
+    positionLabel: "Posición actual",
+    locateMe: "Localizarme",
+    joinRoute: "Unirse a la ruta",
+    onboardingDisclaimer: "Tu apodo, barco y posición son visibles para otros navegantes conectados a esta app.",
+    tabCarte: "Mapa",
+    tabConvois: "Convoyes",
+    tabAlerts: "Alertas",
+    tabChat: "Chat",
+    tabProfile: "Yo",
+    activeLabel: (n) => `${n} activo${n > 1 ? "s" : ""}`,
+  },
+  pt: {
+    loginTagline: "Entrar com link mágico — sem senha para lembrar.",
+    codeSent: (email) => `Código enviado para ${email}. Digite-o abaixo.`,
+    codeLabel: "Código de acesso",
+    validateCode: "Validar código",
+    useOtherEmail: "Usar outro endereço",
+    emailLabel: "Endereço de e-mail",
+    receiveLink: "Receber link de acesso",
+    onboardingTagline: "Junte-se aos navegadores para partilhar posição, alertas de orcas e formar comboios.",
+    pseudoLabel: "Apelido",
+    boatNameLabel: "Nome do barco",
+    positionLabel: "Posição atual",
+    locateMe: "Localizar-me",
+    joinRoute: "Entrar na rota",
+    onboardingDisclaimer: "O teu apelido, barco e posição ficam visíveis para outros navegadores ligados a esta app.",
+    tabCarte: "Mapa",
+    tabConvois: "Comboios",
+    tabAlerts: "Alertas",
+    tabChat: "Chat",
+    tabProfile: "Eu",
+    activeLabel: (n) => `${n} ativo${n > 1 ? "s" : ""}`,
+  },
+};
+
+function LangSwitcher({ lang, setLang }) {
+  return (
+    <div className="flex gap-2 mb-4">
+      {LANGS.map((l) => (
+        <button
+          key={l.code}
+          onClick={() => setLang(l.code)}
+          className="text-xl w-9 h-9 rounded flex items-center justify-center"
+          style={{ border: `1px solid ${lang === l.code ? COLORS.orange : COLORS.border}`, opacity: lang === l.code ? 1 : 0.5 }}
+        >
+          {l.flag}
+        </button>
+      ))}
+    </div>
+  );
+}
 export default function RouteDesOrques() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
@@ -234,6 +349,8 @@ export default function RouteDesOrques() {
   const [linkSent, setLinkSent] = useState(false);
   const [authError, setAuthError] = useState("");
   const [otpCode, setOtpCode] = useState("");
+  const [lang, setLang] = useState("fr");
+  const t = TRANSLATIONS[lang];
 
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -497,9 +614,9 @@ export default function RouteDesOrques() {
     setShowImportPicker(false);
     setImportTarget(null);
   };
+
   const renderHiddenFileInput = () => (
-    <input ref={fileInputRef} type="file" accept=".gpx,application/gpx+xml" onChange={handleGPXFile} style={{ display: "none" }} />
-  );
+    <input ref={fileInputRef} type="file" accept=".gpx,application/gpx+xml" onChange={handleGPXFile} style={{ display: "none" }} />  );
 
   const renderImportModal = () =>
     showImportPicker && (
@@ -751,11 +868,7 @@ export default function RouteDesOrques() {
     setTab("chat");
   };
 
-
-
-
-  if (!authReady) {
-    return (
+  if (!authReady) {    return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: COLORS.bg }}>
         <style>{FONTS}</style>
         <Waves className="animate-pulse" size={32} style={{ color: COLORS.cyan }} />
@@ -774,17 +887,18 @@ export default function RouteDesOrques() {
               LA ROUTE DES ORQUES
             </h1>
           </div>
-          <p className="text-sm mb-6" style={{ color: COLORS.muted }}>
-            Connexion par lien magique — pas de mot de passe à retenir.
+          <p className="text-sm mb-4" style={{ color: COLORS.muted }}>
+            {t.loginTagline}
           </p>
+          <LangSwitcher lang={lang} setLang={setLang} />
           <Panel className="p-5 space-y-4">
             {linkSent ? (
           <div className="text-center py-3">
                 <Check size={28} style={{ color: COLORS.green, marginBottom: 10 }} className="mx-auto" />
                 <p className="text-sm" style={{ color: COLORS.text }}>
-                  Code envoyé à <strong>{loginEmail}</strong>. Saisis-le ci-dessous.
+                  {t.codeSent(loginEmail)}
                 </p>
-                <Field label="Code de connexion">
+                <Field label={t.codeLabel}>
                   <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && verifyCode()}
                     placeholder="12345678" type="text" maxLength={8}
                     className="w-full px-3 py-2 rounded outline-none text-sm text-center" style={inputStyle} />
@@ -792,16 +906,16 @@ export default function RouteDesOrques() {
                 {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
                 <button onClick={verifyCode} className="w-full py-2.5 rounded font-medium text-sm mt-2"
                   style={{ background: COLORS.orange, color: "#1A0E08" }}>
-                  Valider le code
+                  {t.validateCode}
                 </button>
                 <button onClick={() => setLinkSent(false)} className="text-xs mt-3" style={{ color: COLORS.cyan }}>
-                  Utiliser une autre adresse
+                  {t.useOtherEmail}
                 </button>
               </div>
               
             ) : (
               <>
-                <Field label="Adresse e-mail">
+                <Field label={t.emailLabel}>
                   <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMagicLink()}
                     placeholder="toi@exemple.com" type="email"
                     className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
@@ -809,7 +923,7 @@ export default function RouteDesOrques() {
                 {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
                 <button onClick={sendMagicLink} className="w-full py-2.5 rounded font-medium text-sm"
                   style={{ background: COLORS.orange, color: "#1A0E08" }}>
-                  Recevoir le lien de connexion
+                  {t.receiveLink}
                 </button>
               </>
             )}
@@ -840,25 +954,25 @@ export default function RouteDesOrques() {
             </h1>
           </div>
           <p className="text-sm mb-6" style={{ color: COLORS.muted }}>
-            Rejoins les plaisanciers en route pour partager position, alertes orques et former des convois.
+            {t.onboardingTagline}
           </p>
 
           <Panel className="p-5 space-y-4">
-            <Field label="Pseudo">
+            <Field label={t.pseudoLabel}>
               <input value={obPseudo} onChange={(e) => setObPseudo(e.target.value)} placeholder="Ex. Yann"
                 className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
             </Field>
-            <Field label="Nom du bateau">
+            <Field label={t.boatNameLabel}>
               <input value={obBoat} onChange={(e) => setObBoat(e.target.value)} placeholder="Ex. Albatros II"
                 className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
             </Field>
             <div>
               <div className="flex items-center justify-between">
-                <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>Position actuelle</label>
+                <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>{t.positionLabel}</label>
                 <div className="flex gap-2">
                   <button onClick={() => useGeolocation(setObLat, setObLon)}
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                    <LocateFixed size={13} /> Me localiser
+                    <LocateFixed size={13} /> {t.locateMe}
                   </button>
                   <button onClick={() => triggerImport("onboarding")}
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
@@ -876,10 +990,10 @@ export default function RouteDesOrques() {
             </div>
             <button onClick={completeOnboarding} className="w-full py-2.5 rounded font-medium text-sm mt-2"
               style={{ background: COLORS.orange, color: "#1A0E08" }}>
-              Rejoindre la route
+              {t.joinRoute}
             </button>
             <p className="text-xs leading-relaxed" style={{ color: COLORS.muted }}>
-              Ton pseudo, ton bateau et ta position sont visibles par les autres plaisanciers connectés à cette appli.
+              {t.onboardingDisclaimer}
             </p>
           </Panel>
         </div>
@@ -932,7 +1046,7 @@ export default function RouteDesOrques() {
         </div>
         <div className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.green }}>
           <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: COLORS.green }} />
-          {activeCount} actif{activeCount > 1 ? "s" : ""}
+          {t.activeLabel(activeCount)}
         </div>
       </div>
 
@@ -999,8 +1113,8 @@ export default function RouteDesOrques() {
               style={{ background: COLORS.green, color: "#0A1F14" }}>
               <Plus size={16} /> Créer un convoi
             </button>
-            {convoys.length === 0 ? (
-              <Panel className="p-4 text-center">
+
+            {convoys.length === 0 ? (              <Panel className="p-4 text-center">
                 <p className="text-sm" style={{ color: COLORS.muted }}>Aucun convoi pour l'instant. Crée le premier et invite les plaisanciers proches.</p>
               </Panel>
             ) : (
@@ -1238,11 +1352,11 @@ export default function RouteDesOrques() {
       )}
 
       <div className="flex border-t" style={{ borderColor: COLORS.border, background: COLORS.panel }}>
-        <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label="Carte"><Navigation size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label="Convois"><Users size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label="Alertes"><AlertTriangle size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("chat")} active={tab === "chat"} label="Chat"><MessageCircle size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("profile")} active={tab === "profile"} label="Moi"><Anchor size={17} /></IconBtn>
+        <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
+        <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
+        <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><AlertTriangle size={17} /></IconBtn>
+        <IconBtn onClick={() => setTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={17} /></IconBtn>
+        <IconBtn onClick={() => setTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={17} /></IconBtn>
       </div>
 
       {showAlertForm && (
@@ -1306,41 +1420,4 @@ export default function RouteDesOrques() {
               </Field>
               <div className="flex items-center justify-between">
                 <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                  {cvDestLat != null ? `${cvDestLat.toFixed(4)}, ${cvDestLon.toFixed(4)}` : "Coordonnées non définies"}
-                </p>
-                <button onClick={() => triggerImport("convoy-dest")}
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
-                  <Download size={12} /> Importer GPX
-                </button>
-              </div>
-              <Field label="Date et heure d'arrivée estimée">
-                <input type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
-                  className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
-              </Field>
-              <button onClick={createConvoy} className="w-full py-2.5 rounded font-medium text-sm mt-1" style={{ background: COLORS.green, color: "#0A1F14" }}>
-                Créer le convoi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedBoat && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedBoat(null)}>
-          <div className="w-full max-w-xs rounded-lg p-4" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
-            <p className="font-medium text-sm mb-1" style={{ color: COLORS.text }}>{selectedBoat.pseudo} · {selectedBoat.boatName}</p>
-            <p className="text-xs mb-3" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-              {selectedBoat.dist?.toFixed(1)} km · cap {Math.round(selectedBoat.brg)}° · {selectedBoat.stale ? "hors ligne" : timeAgo(selectedBoat.updatedAt)}
-            </p>
-            <button onClick={() => { proposeConvoyViaChat(selectedBoat); setSelectedBoat(null); }} className="w-full py-2 rounded text-sm" style={{ background: COLORS.cyanDim, color: COLORS.cyan }}>
-              Contacter par chat
-            </button>
-          </div>
-        </div>
-      )}
-
-      {renderHiddenFileInput()}
-      {renderImportModal()}
-    </div>
-  );
-}
+                  {cvDestLat != null ? `${cvDestLat.toFixed(4)}, ${cvDestLon.toFixed(4)}` : "Coordonnées non
