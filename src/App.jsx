@@ -1414,10 +1414,32 @@ export default function RouteDesOrques() {
                 <input type="datetime-local" value={cvDeparture} onChange={(e) => setCvDeparture(e.target.value)}
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
               </Field>
-              <Field label="Destination">
-                <input value={cvDest} onChange={(e) => setCvDest(e.target.value)} placeholder="Ex. Port de Saint-Jean-de-Luz"
+              <Field label="Destination"><input value={cvDest} onChange={(e) => setCvDest(e.target.value)} placeholder="Ex. Port de Saint-Jean-de-Luz"
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
               </Field>
               <div className="flex items-center justify-between">
                 <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                  {cvDestLat != null ? `${cvDestLat.toFixed(4)}, ${cvDestLon.toFixed(4)}` : "Coordonnées non
+                  {cvDestLat != null ? `${cvDestLat.toFixed(4)}, ${cvDestLon.toFixed(4)}` : "Coordonnées non définies"}
+                </p>
+                <button onClick={() => triggerImport("convoy-dest")}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
+                  <Download size={12} /> Importer GPX
+                </button>
+              </div>
+              <Field label="Heure d'arrivée estimée">
+                <input type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
+                  className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+              </Field>
+              <button onClick={createConvoy} className="w-full py-2.5 rounded font-medium text-sm" style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                Créer le convoi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renderImportModal()}
+      {renderHiddenFileInput()}
+    </div>
+  );
+}
