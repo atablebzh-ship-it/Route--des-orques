@@ -224,7 +224,9 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     <div
       ref={mapElRef}
       style={{ width: "100%", height: "320px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}
-    />export default function RouteDesOrques() {
+    />
+
+export default function RouteDesOrques() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
   const [loginEmail, setLoginEmail] = useState("");
