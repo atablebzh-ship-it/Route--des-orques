@@ -224,6 +224,7 @@ export default function RouteDesOrques() {
     });
     if (error) setAuthError(error.message);
     else setLinkSent(true);
+    };
     const verifyCode = async () => {
     setAuthError("");
     if (!otpCode.trim()) return;
@@ -233,7 +234,6 @@ export default function RouteDesOrques() {
       type: "email",
     });
     if (error) setAuthError(error.message);
-  };
   };
 
   const handleSignOut = async () => {
