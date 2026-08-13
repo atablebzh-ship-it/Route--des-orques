@@ -150,7 +150,81 @@ const inputStyle = {
   border: `1px solid ${COLORS.border}`,
 };
 
-export default function RouteDesOrques() {
+// --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat }) {
+  const mapElRef = useRef(null);
+  const mapRef = useRef(null);
+  const layerRef = useRef(null);
+
+  useEffect(() => {
+    if (!mapElRef.current || mapRef.current || !window.L) return;
+    const map = window.L.map(mapElRef.current, { zoomControl: true, attributionControl: true }).setView(
+      pos ? [pos.lat, pos.lon] : [47.0, -3.0],
+      pos ? 10 : 5
+    );
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
+    window.L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: '&copy; OpenSeaMap',
+    }).addTo(map);
+    layerRef.current = window.L.layerGroup().addTo(map);
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = layerRef.current;
+    if (!map || !layer || !window.L) return;
+    layer.clearLayers();
+
+    if (pos) {
+      window.L.circleMarker([pos.lat, pos.lon], {
+        radius: 8, color: COLORS.orange, fillColor: COLORS.orange, fillOpacity: 1, weight: 2,
+      }).bindPopup("Toi").addTo(layer);
+    }
+
+    others.forEach((b) => {
+      if (b.lat == null || b.lon == null) return;
+      const inMyConvoy = myConvoyMemberIds.includes(b.id);
+      const c = b.stale ? COLORS.muted : inMyConvoy ? COLORS.green : COLORS.cyan;
+      window.L.circleMarker([b.lat, b.lon], {
+        radius: 7, color: c, fillColor: c, fillOpacity: b.stale ? 0.5 : 1, weight: 2,
+      })
+        .bindPopup(`${b.pseudo} · ${b.boatName}`)
+        .on("click", () => onSelectBoat && onSelectBoat(b))
+        .addTo(layer);
+    });
+
+    alertsWithDist
+      .filter((a) => now - a.createdAt < 6 * 3600 * 1000)
+      .forEach((a) => {
+        window.L.circleMarker([a.lat, a.lon], {
+          radius: 10, color: COLORS.orange, fillColor: COLORS.orange, fillOpacity: 0.35, weight: 2,
+        })
+          .bindPopup(`${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author}`)
+          .addTo(layer);
+      });
+
+    if (myConvoy && myConvoy.destLat != null && myConvoy.destLon != null) {
+      window.L.marker([myConvoy.destLat, myConvoy.destLon])
+        .bindPopup(`Destination · ${myConvoy.name}`)
+        .addTo(layer);
+    }
+  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat]);
+
+  return (
+    <div
+      ref={mapElRef}
+      style={{ width: "100%", height: "320px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}
+    />export default function RouteDesOrques() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
   const [loginEmail, setLoginEmail] = useState("");
@@ -224,8 +298,9 @@ export default function RouteDesOrques() {
     });
     if (error) setAuthError(error.message);
     else setLinkSent(true);
-    };
-    const verifyCode = async () => {
+  };
+
+  const verifyCode = async () => {
     setAuthError("");
     if (!otpCode.trim()) return;
     const { error } = await supabase.auth.verifyOtp({
@@ -419,7 +494,6 @@ export default function RouteDesOrques() {
     setShowImportPicker(false);
     setImportTarget(null);
   };
-
   const renderHiddenFileInput = () => (
     <input ref={fileInputRef} type="file" accept=".gpx,application/gpx+xml" onChange={handleGPXFile} style={{ display: "none" }} />
   );
@@ -674,6 +748,9 @@ export default function RouteDesOrques() {
     setTab("chat");
   };
 
+
+  );
+}
   if (!authReady) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: COLORS.bg }}>
@@ -859,78 +936,22 @@ export default function RouteDesOrques() {
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-2">
         {tab === "carte" && (
           <div>
-            <div className="flex items-center justify-center mb-3 relative">
-              <svg width="300" height="300" viewBox="0 0 300 300">
-                <defs>
-                  <pattern id="chartGrid" width="30" height="30" patternUnits="userSpaceOnUse">
-                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke={COLORS.border} strokeWidth="0.5" opacity="0.5" />
-                  </pattern>
-                </defs>
-                <rect x="10" y="10" width="280" height="280" fill="url(#chartGrid)" stroke={COLORS.border} strokeWidth="1" />
-
-                {[125, 83, 42].map((r, i) => (
-                  <circle key={i} cx={center} cy={center} r={r} fill="none" stroke={COLORS.cyanDim} strokeWidth="0.5" strokeDasharray="2,3" opacity="0.6" />
-                ))}
-                <line x1={center} y1={12} x2={center} y2={288} stroke={COLORS.border} strokeWidth="1" />
-                <line x1={12} y1={center} x2={288} y2={center} stroke={COLORS.border} strokeWidth="1" />
-                <text x={center} y="22" textAnchor="middle" fontSize="11" fill={COLORS.muted} fontFamily="JetBrains Mono, monospace">N</text>
-                <text x={center} y="282" textAnchor="middle" fontSize="11" fill={COLORS.muted} fontFamily="JetBrains Mono, monospace">S</text>
-                <text x="18" y={center + 4} fontSize="11" fill={COLORS.muted} fontFamily="JetBrains Mono, monospace">O</text>
-                <text x="276" y={center + 4} fontSize="11" fill={COLORS.muted} fontFamily="JetBrains Mono, monospace">E</text>
-
-                {/* lignes vers mon convoi confirmé */}
-                {myConvoy && others.filter((b) => myConvoyMemberIds.includes(b.id) && b.dist !== null).map((b) => {
-                  const p2 = chartPoint(b.dist, b.brg);
-                  return <line key={"cv-" + b.id} x1={center} y1={center} x2={p2.x} y2={p2.y} stroke={COLORS.green} strokeWidth="1.2" strokeDasharray="4,3" opacity="0.8" />;
-                })}
-
-                {myConvoy && myConvoy.destLat != null && pos && (() => {
-                  const d = distanceKm(pos.lat, pos.lon, myConvoy.destLat, myConvoy.destLon);
-                  const br = bearingDeg(pos.lat, pos.lon, myConvoy.destLat, myConvoy.destLon);
-                  const { x, y } = chartPoint(d, br);
-                  return (
-                    <g key="dest">
-                      <line x1={center} y1={center} x2={x} y2={y} stroke={COLORS.green} strokeWidth="1" strokeDasharray="1,4" opacity="0.6" />
-                      <path d={`M ${x} ${y - 6} L ${x + 5} ${y} L ${x} ${y + 6} L ${x - 5} ${y} Z`} fill={COLORS.green} />
-                    </g>
-                  );
-                })()}
-
-                <circle cx={center} cy={center} r="5" fill={COLORS.orange} />
-
-                {alertsWithDist.filter((a) => now - a.createdAt < 6 * 3600 * 1000 && a.dist !== null).map((a) => {
-                  const { x, y } = chartPoint(a.dist, a.brg);
-                  return (
-                    <g key={a.id}>
-                      <circle cx={x} cy={y} r="7" fill="none" stroke={COLORS.orange} strokeWidth="1.5" opacity="0.6">
-                        <animate attributeName="r" values="6;12;6" dur="2.5s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite" />
-                      </circle>
-                      <circle cx={x} cy={y} r="4" fill={COLORS.orange} />
-                    </g>
-                  );
-                })}
-
-                {others.filter((b) => b.dist !== null).map((b) => {
-                  const { x, y } = chartPoint(b.dist, b.brg);
-                  const inMyConvoy = myConvoyMemberIds.includes(b.id);
-                  return (
-                    <circle key={b.id} cx={x} cy={y} r="5"
-                      fill={b.stale ? COLORS.muted : inMyConvoy ? COLORS.green : COLORS.cyan}
-                      opacity={b.stale ? 0.5 : 1}
-                      onClick={() => setSelectedBoat(b)} style={{ cursor: "pointer" }} />
-                  );
-                })}
-              </svg>
-              <div className="absolute top-2 right-2 opacity-70">
-                <Compass size={18} style={{ color: COLORS.muted }} />
-              </div>
+            <div className="mb-3">
+              <MarineMap
+                pos={pos}
+                others={others}
+                alertsWithDist={alertsWithDist}
+                myConvoy={myConvoy}
+                myConvoyMemberIds={myConvoyMemberIds}
+                now={now}
+                onSelectBoat={setSelectedBoat}
+              />
             </div>
             <p className="text-center text-xs mb-4" style={{ color: COLORS.muted }}>
               <span style={{ color: COLORS.orange }}>●</span> toi &nbsp;
               <span style={{ color: COLORS.cyan }}>●</span> plaisanciers &nbsp;
               <span style={{ color: COLORS.green }}>●</span> mon convoi &nbsp;
-              <span style={{ color: COLORS.orange }}>◎</span> orques · échelle {CHART_MAX_KM} km
+              <span style={{ color: COLORS.orange }}>◎</span> orques
             </p>
 
             <button onClick={exportChartGPX}
@@ -975,7 +996,6 @@ export default function RouteDesOrques() {
               style={{ background: COLORS.green, color: "#0A1F14" }}>
               <Plus size={16} /> Créer un convoi
             </button>
-
             {convoys.length === 0 ? (
               <Panel className="p-4 text-center">
                 <p className="text-sm" style={{ color: COLORS.muted }}>Aucun convoi pour l'instant. Crée le premier et invite les plaisanciers proches.</p>
