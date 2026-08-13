@@ -156,6 +156,7 @@ export default function RouteDesOrques() {
   const [loginEmail, setLoginEmail] = useState("");
   const [linkSent, setLinkSent] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [otpCode, setOtpCode] = useState("");
 
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -223,6 +224,16 @@ export default function RouteDesOrques() {
     });
     if (error) setAuthError(error.message);
     else setLinkSent(true);
+    const verifyCode = async () => {
+    setAuthError("");
+    if (!otpCode.trim()) return;
+    const { error } = await supabase.auth.verifyOtp({
+      email: loginEmail.trim(),
+      token: otpCode.trim(),
+      type: "email",
+    });
+    if (error) setAuthError(error.message);
+  };
   };
 
   const handleSignOut = async () => {
@@ -688,14 +699,25 @@ export default function RouteDesOrques() {
           </p>
           <Panel className="p-5 space-y-4">
             {linkSent ? (
-              <div className="text-center py-3">
+          <div className="text-center py-3">
                 <Check size={28} style={{ color: COLORS.green, marginBottom: 10 }} className="mx-auto" />
                 <p className="text-sm" style={{ color: COLORS.text }}>
-                  Lien envoyé à <strong>{loginEmail}</strong>. Ouvre-le depuis ce téléphone pour te connecter.
+                  Code envoyé à <strong>{loginEmail}</strong>. Saisis-le ci-dessous.
                 </p>
+                <Field label="Code de connexion">
+                  <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && verifyCode()}
+                    placeholder="12345678" type="text" maxLength={8}
+                    className="w-full px-3 py-2 rounded outline-none text-sm text-center" style={inputStyle} />
+                </Field>
+                {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
+                <button onClick={verifyCode} className="w-full py-2.5 rounded font-medium text-sm mt-2"
+                  style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                  Valider le code
+                </button>
                 <button onClick={() => setLinkSent(false)} className="text-xs mt-3" style={{ color: COLORS.cyan }}>
                   Utiliser une autre adresse
                 </button>
+              </div>
               </div>
             ) : (
               <>
