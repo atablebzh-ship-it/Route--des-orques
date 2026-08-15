@@ -405,6 +405,9 @@ export default function RouteDesOrques() {
   const [showConvoyForm, setShowConvoyForm] = useState(false);
   const [alertCount, setAlertCount] = useState("");
   const [alertNotes, setAlertNotes] = useState("");
+  const [alertLat, setAlertLat] = useState(null);
+  const [alertLon, setAlertLon] = useState(null);
+  const [alertLocating, setAlertLocating] = useState(false);
   const [chatText, setChatText] = useState("");
   const [selectedBoat, setSelectedBoat] = useState(null);
   const [expandedConvoy, setExpandedConvoy] = useState(null);
@@ -754,15 +757,45 @@ export default function RouteDesOrques() {
     setBoats({});
   };
 
+  const openAlertForm = () => {
+    setAlertLat(pos?.lat ?? null);
+    setAlertLon(pos?.lon ?? null);
+    setAlertCount("1");
+    setShowAlertForm(true);
+  };
+
+  const locateForAlert = () => {
+    setGeoError("");
+    if (!navigator.geolocation) {
+      setGeoError("La géolocalisation n'est pas disponible sur cet appareil.");
+      return;
+    }
+    setAlertLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setAlertLat(p.coords.latitude);
+        setAlertLon(p.coords.longitude);
+        setAlertLocating(false);
+      },
+      () => {
+        setGeoError("Position refusée. Réessaie ou vérifie l'autorisation de localisation.");
+        setAlertLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   const addAlert = async () => {
-    if (!pos) return;
+    const lat = alertLat ?? pos?.lat;
+    const lon = alertLon ?? pos?.lon;
+    if (lat == null || lon == null) return;
     const count = parseInt(alertCount, 10);
     if (!count || count < 1) return;
     setSaving(true);
     try {
       const { data, error } = await supabase
         .from("alerts")
-        .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat: pos.lat, lon: pos.lon, count, notes: alertNotes.trim() })
+        .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim() })
         .select()
         .single();
       if (!error && data) {
@@ -774,6 +807,8 @@ export default function RouteDesOrques() {
       }
       setAlertCount("");
       setAlertNotes("");
+      setAlertLat(null);
+      setAlertLon(null);
       setShowAlertForm(false);
       setTab("alerts");
     } catch (e) {}
@@ -1246,7 +1281,7 @@ export default function RouteDesOrques() {
 
         {tab === "alerts" && (
           <div className="space-y-2">
-            <button onClick={() => setShowAlertForm(true)}
+            <button onClick={openAlertForm}
               className="w-full py-2.5 rounded font-medium text-sm mb-2 flex items-center justify-center gap-2"
               style={{ background: COLORS.orange, color: "#1A0E08" }}>
               <Plus size={16} /> Signaler des orques
@@ -1451,18 +1486,55 @@ export default function RouteDesOrques() {
               <button onClick={() => setShowAlertForm(false)}><X size={18} style={{ color: COLORS.muted }} /></button>
             </div>
             <Field label="Nombre d'individus">
-              <input value={alertCount} onChange={(e) => setAlertCount(e.target.value)} inputMode="numeric" placeholder="Ex. 3"
-                className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+              <div className="flex items-center gap-2">
+                <button type="button"
+                  onClick={() => setAlertCount(String(Math.max(1, (parseInt(alertCount, 10) || 1) - 1)))}
+                  className="w-10 h-10 rounded text-lg font-medium shrink-0"
+                  style={{ ...inputStyle, color: COLORS.cyan }}>
+                  −
+                </button>
+                <input value={alertCount} onChange={(e) => setAlertCount(e.target.value.replace(/[^0-9]/g, ""))}
+                  inputMode="numeric" placeholder="Ex. 3" style={{ ...inputStyle, textAlign: "center" }}
+                  className="flex-1 px-3 py-2 rounded outline-none text-sm" />
+                <button type="button"
+                  onClick={() => setAlertCount(String((parseInt(alertCount, 10) || 0) + 1))}
+                  className="w-10 h-10 rounded text-lg font-medium shrink-0"
+                  style={{ ...inputStyle, color: COLORS.cyan }}>
+                  +
+                </button>
+              </div>
+              <div className="flex gap-2 mt-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" onClick={() => setAlertCount(String(n))}
+                    className="flex-1 py-1.5 rounded text-xs"
+                    style={{
+                      background: alertCount === String(n) ? COLORS.orangeDim : "transparent",
+                      color: alertCount === String(n) ? COLORS.orange : COLORS.muted,
+                      border: `1px solid ${alertCount === String(n) ? COLORS.orangeDim : COLORS.border}`,
+                    }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
             </Field>
             <div className="h-3" />
             <Field label="Notes (comportement, distance…)">
               <textarea value={alertNotes} onChange={(e) => setAlertNotes(e.target.value)} rows={3} placeholder="Ex. Approche curieuse du safran, rester calme"
                 className="w-full px-3 py-2 rounded outline-none text-sm resize-none" style={inputStyle} />
             </Field>
-            <p className="text-xs my-3" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-              Position : {pos?.lat.toFixed(4)}, {pos?.lon.toFixed(4)}
-            </p>
-            <button onClick={addAlert} className="w-full py-2.5 rounded font-medium text-sm" style={{ background: COLORS.orange, color: "#1A0E08" }}>
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
+                Position : {alertLat != null && alertLon != null ? `${alertLat.toFixed(4)}, ${alertLon.toFixed(4)}` : "non localisée"}
+              </p>
+              <button onClick={locateForAlert} disabled={alertLocating}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                <LocateFixed size={13} /> {alertLocating ? "Localisation…" : "Me localiser"}
+              </button>
+            </div>
+            {geoError && <p className="text-xs mt-1.5" style={{ color: COLORS.orange }}>{geoError}</p>}
+            <button onClick={addAlert} disabled={alertLat == null || alertLon == null}
+              className="w-full py-2.5 rounded font-medium text-sm mt-3"
+              style={{ background: COLORS.orange, color: "#1A0E08", opacity: alertLat == null || alertLon == null ? 0.5 : 1 }}>
               Publier l'alerte
             </button>
           </div>
