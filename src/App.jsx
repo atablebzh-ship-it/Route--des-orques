@@ -24,8 +24,15 @@ const COLORS = {
 const STALE_MS = 15 * 60 * 1000;
 const POLL_MS = 7000;
 const MAX_CHAT = 150;
-const MAX_ALERTS = 60;
+const MAX_ALERTS = 300; // couvre les signalements récents + l'historique de la saison
 const MAX_CONVOYS = 40;
+const RECENT_ALERT_MS = 6 * 3600 * 1000;
+
+// Sources officielles pour l'historique des interactions orques hors signalements de la communauté
+const OFFICIAL_ORCA_SOURCES = [
+  { label: "GTOA — Groupe de Travail Orques Atlantique", url: "https://gtoa.fr" },
+  { label: "Cruising Association — Orca Attack Reports", url: "https://theca.org.uk/orca-alert" },
+];
 
 function toRad(d) { return (d * Math.PI) / 180; }
 function toDeg(r) { return (r * 180) / Math.PI; }
@@ -203,15 +210,18 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         .addTo(layer);
     });
 
-    alertsWithDist
-      .filter((a) => now - a.createdAt < 6 * 3600 * 1000)
-      .forEach((a) => {
-        window.L.circleMarker([a.lat, a.lon], {
-          radius: 10, color: COLORS.orange, fillColor: COLORS.orange, fillOpacity: 0.35, weight: 2,
-        })
-          .bindPopup(`${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author}`)
-          .addTo(layer);
-      });
+    alertsWithDist.forEach((a) => {
+      const isRecent = now - a.createdAt < RECENT_ALERT_MS;
+      window.L.circleMarker([a.lat, a.lon], {
+        radius: isRecent ? 10 : 6,
+        color: isRecent ? COLORS.orange : COLORS.muted,
+        fillColor: isRecent ? COLORS.orange : COLORS.muted,
+        fillOpacity: isRecent ? 0.35 : 0.25,
+        weight: isRecent ? 2 : 1,
+      })
+        .bindPopup(`${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author} · ${fmtDateTime(new Date(a.createdAt).toISOString())}`)
+        .addTo(layer);
+    });
 
     if (myConvoy && myConvoy.destLat != null && myConvoy.destLon != null) {
       window.L.marker([myConvoy.destLat, myConvoy.destLon])
@@ -257,6 +267,12 @@ const TRANSLATIONS = {
     tabChat: "Chat",
     tabProfile: "Moi",
     activeLabel: (n) => `${n} actif${n > 1 ? "s" : ""}`,
+    alertsRecent: "Récentes",
+    alertsHistory: "Historique",
+    noRecentAlerts: "Aucune observation signalée récemment.",
+    noHistoryAlerts: "Aucun signalement dans l'historique pour l'instant.",
+    officialSourcesTitle: "Sources officielles",
+    officialSourcesDesc: "Pour les données antérieures et les statistiques complètes d'interactions orques :",
   },
   en: {
     loginTagline: "Sign in with a magic link — no password to remember.",
@@ -279,6 +295,12 @@ const TRANSLATIONS = {
     tabChat: "Chat",
     tabProfile: "Me",
     activeLabel: (n) => `${n} active`,
+    alertsRecent: "Recent",
+    alertsHistory: "History",
+    noRecentAlerts: "No sightings reported recently.",
+    noHistoryAlerts: "No reports in the history yet.",
+    officialSourcesTitle: "Official sources",
+    officialSourcesDesc: "For past data and full orca interaction statistics:",
   },
   es: {
     loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
@@ -301,6 +323,12 @@ const TRANSLATIONS = {
     tabChat: "Chat",
     tabProfile: "Yo",
     activeLabel: (n) => `${n} activo${n > 1 ? "s" : ""}`,
+    alertsRecent: "Recientes",
+    alertsHistory: "Historial",
+    noRecentAlerts: "No se han señalado avistamientos recientemente.",
+    noHistoryAlerts: "Aún no hay reportes en el historial.",
+    officialSourcesTitle: "Fuentes oficiales",
+    officialSourcesDesc: "Para datos anteriores y estadísticas completas de interacciones con orcas:",
   },
   pt: {
     loginTagline: "Entrar com link mágico — sem senha para lembrar.",
@@ -323,6 +351,12 @@ const TRANSLATIONS = {
     tabChat: "Chat",
     tabProfile: "Eu",
     activeLabel: (n) => `${n} ativo${n > 1 ? "s" : ""}`,
+    alertsRecent: "Recentes",
+    alertsHistory: "Histórico",
+    noRecentAlerts: "Nenhum avistamento reportado recentemente.",
+    noHistoryAlerts: "Ainda não há relatos no histórico.",
+    officialSourcesTitle: "Fontes oficiais",
+    officialSourcesDesc: "Para dados anteriores e estatísticas completas de interações com orcas:",
   },
 };
 
@@ -363,6 +397,7 @@ export default function RouteDesOrques() {
   const [convoys, setConvoys] = useState([]);
   const [tab, setTab] = useState("carte");
   const [showAlertForm, setShowAlertForm] = useState(false);
+  const [alertsView, setAlertsView] = useState("recentes");
   const [showConvoyForm, setShowConvoyForm] = useState(false);
   const [alertCount, setAlertCount] = useState("");
   const [alertNotes, setAlertNotes] = useState("");
@@ -1068,7 +1103,8 @@ export default function RouteDesOrques() {
               <span style={{ color: COLORS.orange }}>●</span> toi &nbsp;
               <span style={{ color: COLORS.cyan }}>●</span> plaisanciers &nbsp;
               <span style={{ color: COLORS.green }}>●</span> mon convoi &nbsp;
-              <span style={{ color: COLORS.orange }}>◎</span> orques
+              <span style={{ color: COLORS.orange }}>◎</span> orques récentes &nbsp;
+              <span style={{ color: COLORS.muted }}>◎</span> historique
             </p>
 
             <button onClick={exportChartGPX}
@@ -1211,32 +1247,76 @@ export default function RouteDesOrques() {
               style={{ background: COLORS.orange, color: "#1A0E08" }}>
               <Plus size={16} /> Signaler des orques
             </button>
-            {alertsWithDist.length === 0 ? (
-              <Panel className="p-4 text-center">
-                <p className="text-sm" style={{ color: COLORS.muted }}>Aucune observation signalée récemment.</p>
-              </Panel>
-            ) : (
-              alertsWithDist.map((a) => (
-                <Panel key={a.id} className="p-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle size={16} style={{ color: COLORS.orange }} />
-                      <span className="text-sm font-medium" style={{ color: COLORS.text }}>{a.count} orque{a.count > 1 ? "s" : ""}</span>
+
+            <div className="flex gap-2 mb-2">
+              {[["recentes", t.alertsRecent], ["historique", t.alertsHistory]].map(([val, label]) => (
+                <button key={val} onClick={() => setAlertsView(val)}
+                  className="flex-1 text-xs py-1.5 rounded"
+                  style={{
+                    background: alertsView === val ? COLORS.orangeDim : "transparent",
+                    color: alertsView === val ? COLORS.orange : COLORS.muted,
+                    border: `1px solid ${alertsView === val ? COLORS.orangeDim : COLORS.border}`,
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {(() => {
+              const recentAlerts = alertsWithDist.filter((a) => now - a.createdAt < RECENT_ALERT_MS);
+              const historyAlerts = alertsWithDist.filter((a) => now - a.createdAt >= RECENT_ALERT_MS);
+              const shown = alertsView === "recentes" ? recentAlerts : historyAlerts;
+              const emptyLabel = alertsView === "recentes" ? t.noRecentAlerts : t.noHistoryAlerts;
+              return (
+                <>
+                  {shown.length === 0 ? (
+                    <Panel className="p-4 text-center">
+                      <p className="text-sm" style={{ color: COLORS.muted }}>{emptyLabel}</p>
+                    </Panel>
+                  ) : (
+                    <div className="space-y-2">
+                      {shown.map((a) => (
+                        <Panel key={a.id} className="p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle size={16} style={{ color: alertsView === "recentes" ? COLORS.orange : COLORS.muted }} />
+                              <span className="text-sm font-medium" style={{ color: COLORS.text }}>{a.count} orque{a.count > 1 ? "s" : ""}</span>
+                            </div>
+                            <span className="text-xs" style={{ color: COLORS.muted }}>
+                              {alertsView === "recentes" ? timeAgo(a.createdAt) : fmtDateTime(new Date(a.createdAt).toISOString())}
+                            </span>
+                          </div>
+                          {a.notes && <p className="text-sm mt-1.5" style={{ color: COLORS.text }}>{a.notes}</p>}
+                          <div className="flex items-center justify-between mt-1.5">
+                            <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
+                              {a.author} · {a.boatName}{a.dist !== null ? ` · ${a.dist.toFixed(1)} km (cap ${Math.round(a.brg)}°)` : ""}
+                            </p>
+                            <button onClick={() => exportAlertGPX(a)} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
+                              <Download size={14} />
+                            </button>
+                          </div>
+                        </Panel>
+                      ))}
                     </div>
-                    <span className="text-xs" style={{ color: COLORS.muted }}>{timeAgo(a.createdAt)}</span>
-                  </div>
-                  {a.notes && <p className="text-sm mt-1.5" style={{ color: COLORS.text }}>{a.notes}</p>}
-                  <div className="flex items-center justify-between mt-1.5">
-                    <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                      {a.author} · {a.boatName}{a.dist !== null ? ` · ${a.dist.toFixed(1)} km (cap ${Math.round(a.brg)}°)` : ""}
-                    </p>
-                    <button onClick={() => exportAlertGPX(a)} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
-                      <Download size={14} />
-                    </button>
-                  </div>
-                </Panel>
-              ))
-            )}
+                  )}
+
+                  {alertsView === "historique" && (
+                    <Panel className="p-4 mt-3">
+                      <p className="text-xs uppercase tracking-wider mb-1.5" style={{ color: COLORS.muted }}>{t.officialSourcesTitle}</p>
+                      <p className="text-sm mb-2" style={{ color: COLORS.text }}>{t.officialSourcesDesc}</p>
+                      <div className="space-y-1.5">
+                        {OFFICIAL_ORCA_SOURCES.map((s) => (
+                          <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                            className="block text-sm underline" style={{ color: COLORS.cyan }}>
+                            {s.label}
+                          </a>
+                        ))}
+                      </div>
+                    </Panel>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
