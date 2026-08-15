@@ -133,11 +133,15 @@ function IconBtn({ onClick, active, children, label }) {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-1 flex-1 py-2"
-      style={{ color: active ? COLORS.cyan : COLORS.muted }}
+      className="flex flex-col items-center justify-center gap-1 flex-1 py-2.5"
+      style={{
+        color: active ? COLORS.cyan : COLORS.text,
+        background: active ? COLORS.cyanDim : "transparent",
+        opacity: active ? 1 : 0.75,
+      }}
     >
       {children}
-      <span className="text-xs" style={{ fontFamily: "Inter, sans-serif" }}>{label}</span>
+      <span className="text-xs font-medium" style={{ fontFamily: "Inter, sans-serif" }}>{label}</span>
     </button>
   );
 }
@@ -1431,7 +1435,7 @@ export default function RouteDesOrques() {
         </div>
       )}
 
-      <div className="flex border-t" style={{ borderColor: COLORS.border, background: COLORS.panel }}>
+      <div className="flex border-t-2" style={{ borderColor: COLORS.cyanDim, background: COLORS.panelAlt }}>
         <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
         <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
         <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><AlertTriangle size={17} /></IconBtn>
