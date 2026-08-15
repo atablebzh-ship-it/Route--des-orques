@@ -264,6 +264,7 @@ const LANGS = [
 const TRANSLATIONS = {
   fr: {
     loginTagline: "Connexion par lien magique — pas de mot de passe à retenir.",
+    slogan: "Naviguons ensemble, naviguons en sécurité",
     codeSent: (email) => `Code envoyé à ${email}. Saisis-le ci-dessous.`,
     codeLabel: "Code de connexion",
     validateCode: "Valider le code",
@@ -292,6 +293,7 @@ const TRANSLATIONS = {
   },
   en: {
     loginTagline: "Sign in with a magic link — no password to remember.",
+    slogan: "Sail together, sail safer",
     codeSent: (email) => `Code sent to ${email}. Enter it below.`,
     codeLabel: "Sign-in code",
     validateCode: "Validate code",
@@ -320,6 +322,7 @@ const TRANSLATIONS = {
   },
   es: {
     loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
+    slogan: "Naveguemos juntos, naveguemos más seguros",
     codeSent: (email) => `Código enviado a ${email}. Introdúcelo a continuación.`,
     codeLabel: "Código de acceso",
     validateCode: "Validar código",
@@ -348,6 +351,7 @@ const TRANSLATIONS = {
   },
   pt: {
     loginTagline: "Entrar com link mágico — sem senha para lembrar.",
+    slogan: "Naveguemos juntos, naveguemos mais seguros",
     codeSent: (email) => `Código enviado para ${email}. Digite-o abaixo.`,
     codeLabel: "Código de acesso",
     validateCode: "Validar código",
@@ -1062,6 +1066,9 @@ export default function RouteDesOrques() {
               LA ROUTE DES ORQUES
             </h1>
           </div>
+          <p className="text-sm mb-3" style={{ color: COLORS.cyan, fontStyle: "italic" }}>
+            {t.slogan}
+          </p>
           <p className="text-sm mb-4" style={{ color: COLORS.muted }}>
             {t.loginTagline}
           </p>
@@ -1128,6 +1135,9 @@ export default function RouteDesOrques() {
               LA ROUTE DES ORQUES
             </h1>
           </div>
+          <p className="text-sm mb-3" style={{ color: COLORS.cyan, fontStyle: "italic" }}>
+            {t.slogan}
+          </p>
           <p className="text-sm mb-6" style={{ color: COLORS.muted }}>
             {t.onboardingTagline}
           </p>
