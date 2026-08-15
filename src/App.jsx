@@ -34,6 +34,18 @@ const OFFICIAL_ORCA_SOURCES = [
   { label: "Cruising Association — Orca Attack Reports", url: "https://theca.org.uk/orca-alert" },
 ];
 
+// --- Notifications push : clé publique VAPID (la clé privée reste côté serveur uniquement) ---
+const VAPID_PUBLIC_KEY = "BMIS8tdZkU4-Ds_en30kFg0TsZWuxFnzBFguaStsE9DGI7FhxH2IIOdzvJyph2c4KGT_ZTMFkiNnJ7GKp69oeYs";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
 function toRad(d) { return (d * Math.PI) / 180; }
 function toDeg(r) { return (r * 180) / Math.PI; }
 
@@ -392,6 +404,7 @@ export default function RouteDesOrques() {
 
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [pushStatus, setPushStatus] = useState("inconnu"); // inconnu | inactif | actif | refuse | indisponible
   const [pos, setPos] = useState(null);
   const [heading, setHeading] = useState("");
   const [status, setStatus] = useState("en_route");
@@ -493,6 +506,73 @@ export default function RouteDesOrques() {
       setReady(true);
     })();
   }, []);
+
+  // --- Notifications push ---
+  const sendPush = useCallback(async (boatIds, title, body, url) => {
+    try {
+      const ids = (boatIds || []).filter((id) => id && id !== profile?.id);
+      if (ids.length === 0) return;
+      await supabase.functions.invoke("send-push", { body: { boatIds: ids, title, body, url } });
+    } catch (e) {}
+  }, [profile]);
+
+  const checkPushStatus = useCallback(async () => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushStatus("indisponible");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setPushStatus("refuse");
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      setPushStatus(sub ? "actif" : "inactif");
+    } catch (e) {
+      setPushStatus("inactif");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (profile) checkPushStatus();
+  }, [profile, checkPushStatus]);
+
+  const subscribeToPush = async () => {
+    if (!profile) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushStatus("indisponible");
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus("refuse");
+        return;
+      }
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+      const json = sub.toJSON();
+      await supabase.from("push_subscriptions").upsert(
+        {
+          boat_id: profile.id,
+          endpoint: json.endpoint,
+          p256dh: json.keys.p256dh,
+          auth: json.keys.auth,
+        },
+        { onConflict: "endpoint" }
+      );
+      setPushStatus("actif");
+    } catch (e) {
+      setPushStatus("inactif");
+    }
+  };
 
   const fetchShared = useCallback(async () => {
     try {
@@ -811,6 +891,12 @@ export default function RouteDesOrques() {
       setAlertLon(null);
       setShowAlertForm(false);
       setTab("alerts");
+
+      const myConvoyNow = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
+      if (myConvoyNow) {
+        const memberIds = myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId);
+        sendPush(memberIds, "Orques signalées", `${profile.pseudo} a signalé ${count} orque${count > 1 ? "s" : ""} près de votre convoi`, "/");
+      }
     } catch (e) {}
     setSaving(false);
   };
@@ -864,6 +950,13 @@ export default function RouteDesOrques() {
         await supabase.from("convoy_members").update({ status: "confirme" }).eq("convoy_id", cv.id).eq("boat_id", profile.id);
         await fetchShared();
         setExpandedConvoy(cv.id);
+
+        const NEARBY_KM = 30;
+        const nearbyIds = Object.values(boats)
+          .filter((b) => b.id !== profile.id && b.lat != null && b.lon != null)
+          .filter((b) => distanceKm(rdvLat, rdvLon, b.lat, b.lon) <= NEARBY_KM)
+          .map((b) => b.id);
+        sendPush(nearbyIds, "Nouveau convoi près de toi", `${profile.pseudo} organise "${cv.name}"`, "/");
       }
       setCvName(""); setCvRdv(""); setCvRdvLat(null); setCvRdvLon(null);
       setCvDeparture(""); setCvDest(""); setCvDestLat(null); setCvDestLon(null); setCvEta("");
@@ -883,6 +976,10 @@ export default function RouteDesOrques() {
     try {
       await supabase.from("convoy_members").insert({ convoy_id: convoyId, boat_id: profile.id, pseudo: profile.pseudo, boat_name: profile.boatName, status: "en_attente" });
       await fetchShared();
+      const cv = convoys.find((c) => c.id === convoyId);
+      if (cv) {
+        sendPush([cv.organizerId], "Nouvelle demande de convoi", `${profile.pseudo} demande à rejoindre "${cv.name}"`, "/");
+      }
     } catch (e) {}
   };
 
@@ -894,6 +991,10 @@ export default function RouteDesOrques() {
         await supabase.from("convoy_members").delete().eq("convoy_id", convoyId).eq("boat_id", boatId);
       }
       await fetchShared();
+      if (accept) {
+        const cv = convoys.find((c) => c.id === convoyId);
+        sendPush([boatId], "Demande acceptée", `Tu as rejoint le convoi "${cv?.name || ""}"`, "/");
+      }
     } catch (e) {}
   };
 
@@ -1386,6 +1487,32 @@ export default function RouteDesOrques() {
               <p className="text-sm" style={{ color: COLORS.muted }}>{profile.boatName}</p>
               {session?.user?.email && <p className="text-xs mt-1" style={{ color: COLORS.muted }}>{session.user.email}</p>}
               {pos && <p className="text-xs mt-2" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>{pos.lat.toFixed(5)}, {pos.lon.toFixed(5)}</p>}
+            </Panel>
+
+            <Panel className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm" style={{ color: COLORS.text }}>Notifications</p>
+                  <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                    {pushStatus === "actif" && "Actives — alertes orques, convois et demandes reçues même appli fermée"}
+                    {pushStatus === "inactif" && "Reçois une alerte même quand l'appli est fermée"}
+                    {pushStatus === "refuse" && "Autorisation refusée — active-la dans les réglages de ton navigateur"}
+                    {pushStatus === "indisponible" && "Non disponibles sur ce navigateur/appareil"}
+                    {pushStatus === "inconnu" && "Vérification…"}
+                  </p>
+                </div>
+                {pushStatus === "actif" ? (
+                  <span className="px-3 py-1.5 rounded text-xs flex items-center gap-1 shrink-0" style={{ background: COLORS.green, color: "#0A1F14" }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />
+                    Actif
+                  </span>
+                ) : pushStatus === "inactif" ? (
+                  <button onClick={subscribeToPush} className="px-3 py-1.5 rounded text-xs shrink-0"
+                    style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                    Activer
+                  </button>
+                ) : null}
+              </div>
             </Panel>
 
             <Panel className="p-4">
