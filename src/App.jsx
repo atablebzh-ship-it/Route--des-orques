@@ -34,6 +34,26 @@ const OFFICIAL_ORCA_SOURCES = [
   { label: "Cruising Association — Orca Attack Reports", url: "https://theca.org.uk/orca-alert" },
 ];
 
+// Chantiers navals / réparateurs (haul-out, urgences) sur la zone Brest → Gibraltar/Cadix
+const SHIPYARDS = [
+  { name: "Port de Brest — Réparation Navale", address: "Brest, France", lat: 48.3876, lon: -4.4591, phone: "+33 2 98 14 77 59" },
+  { name: "Brest Marine Services", address: "Brest, France", lat: 48.3877, lon: -4.4366, phone: "+33 2 98 42 31 89" },
+  { name: "Chantier Naval des Minimes", address: "La Rochelle, France", lat: 46.1505, lon: -1.1588, phone: "+33 5 46 44 75 47" },
+  { name: "Boat Yard Old Port", address: "La Rochelle, France", lat: 46.1487, lon: -1.1528, phone: "+33 5 46 41 42 11" },
+  { name: "Marinaseca", address: "A Coruña, Espagne", lat: 43.3484, lon: -8.3861, phone: "+34 881 91 36 51" },
+  { name: "Domar Talleres Navales", address: "A Coruña, Espagne", lat: 43.3571, lon: -8.3937, phone: "+34 981 28 96 29" },
+  { name: "Marina Davila Sport", address: "Vigo, Espagne", lat: 42.2316, lon: -8.7441, phone: null },
+  { name: "Estaleiros Vila do Conde / Sicnave", address: "Póvoa de Varzim, Portugal", lat: 41.3434, lon: -8.7434, phone: "+351 252 631 369" },
+  { name: "Safe Harbor Yacht Services", address: "Cascais, Portugal", lat: 38.6921, lon: -9.4192, phone: "+351 964 800 498" },
+  { name: "Wavetech", address: "Cascais, Portugal", lat: 38.6913, lon: -9.4184, phone: "+351 21 484 7025" },
+  { name: "Shipyard Marina de Portimão", address: "Portimão, Portugal", lat: 37.1367, lon: -8.5269, phone: "+351 282 411 533" },
+  { name: "RC Marine Portugal Yacht Services", address: "Portimão, Portugal", lat: 37.1373, lon: -8.5269, phone: "+351 927 190 533" },
+  { name: "Sopromar Portimão", address: "Portimão, Portugal", lat: 37.1369, lon: -8.5275, phone: "+351 282 425 173" },
+  { name: "Varadero Marina Punta Europa", address: "El Puerto de Santa María, Cadix, Espagne", lat: 36.5849, lon: -6.2318, phone: "+34 609 33 06 18" },
+  { name: "Gibdock", address: "Gibraltar", lat: 36.1241, lon: -5.3547, phone: "+350 200 59400" },
+  { name: "All Motor Boat & Yacht Services", address: "Gibraltar", lat: 36.1474, lon: -5.3542, phone: "+34 678 34 55 95" },
+];
+
 // --- Notifications push : clé publique VAPID (la clé privée reste côté serveur uniquement) ---
 const VAPID_PUBLIC_KEY = "BMIS8tdZkU4-Ds_en30kFg0TsZWuxFnzBFguaStsE9DGI7FhxH2IIOdzvJyph2c4KGT_ZTMFkiNnJ7GKp69oeYs";
 
@@ -174,7 +194,7 @@ const inputStyle = {
 };
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat }) {
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
@@ -244,7 +264,21 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         .bindPopup(`Destination · ${myConvoy.name}`)
         .addTo(layer);
     }
-  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat]);
+
+    if (showShipyards) {
+      const wrenchIcon = window.L.divIcon({
+        html: `<div style="background:${COLORS.green};width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #0A1F14;font-size:12px;">🔧</div>`,
+        className: "",
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+      SHIPYARDS.forEach((s) => {
+        window.L.marker([s.lat, s.lon], { icon: wrenchIcon })
+          .bindPopup(`<b>${s.name}</b><br/>${s.address}${s.phone ? `<br/>${s.phone}` : ""}`)
+          .addTo(layer);
+      });
+    }
+  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards]);
 
   return (
     <div
@@ -419,6 +453,7 @@ export default function RouteDesOrques() {
   const [tab, setTab] = useState("carte");
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
+  const [showShipyards, setShowShipyards] = useState(true);
   const [showConvoyForm, setShowConvoyForm] = useState(false);
   const [alertCount, setAlertCount] = useState("");
   const [alertNotes, setAlertNotes] = useState("");
@@ -1247,14 +1282,27 @@ export default function RouteDesOrques() {
                 myConvoyMemberIds={myConvoyMemberIds}
                 now={now}
                 onSelectBoat={setSelectedBoat}
+                showShipyards={showShipyards}
               />
+            </div>
+            <div className="flex items-center justify-center mb-3">
+              <button onClick={() => setShowShipyards((v) => !v)}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded"
+                style={{
+                  background: showShipyards ? COLORS.greenDim : "transparent",
+                  color: showShipyards ? COLORS.green : COLORS.muted,
+                  border: `1px solid ${showShipyards ? COLORS.green : COLORS.border}`,
+                }}>
+                🔧 Chantiers navals {showShipyards ? "affichés" : "masqués"}
+              </button>
             </div>
             <p className="text-center text-xs mb-4" style={{ color: COLORS.muted }}>
               <span style={{ color: COLORS.orange }}>●</span> toi &nbsp;
               <span style={{ color: COLORS.cyan }}>●</span> plaisanciers &nbsp;
               <span style={{ color: COLORS.green }}>●</span> mon convoi &nbsp;
               <span style={{ color: COLORS.orange }}>◎</span> orques récentes &nbsp;
-              <span style={{ color: COLORS.muted }}>◎</span> historique
+              <span style={{ color: COLORS.muted }}>◎</span> historique &nbsp;
+              🔧 chantier naval
             </p>
 
             <button onClick={exportChartGPX}
