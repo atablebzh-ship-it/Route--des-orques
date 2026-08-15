@@ -1,3 +1,4 @@
+import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Anchor, Navigation, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
@@ -1781,6 +1782,10 @@ export default function RouteDesOrques() {
 
       {renderImportModal()}
       {renderHiddenFileInput()}
+        <SeoContent />
+      </div>
+    );
+  }
     </div>
   );
 }
