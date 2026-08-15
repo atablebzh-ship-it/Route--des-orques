@@ -105,10 +105,6 @@ function fmtDateTime(iso) {
   }
 }
 
-function uid() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
 // --- Export GPX : format standard lu par OpenCPN, Navionics, Garmin, qaRte, SeaNav, etc. ---
 function escapeXml(str) {
   return String(str ?? "").replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
@@ -883,6 +879,19 @@ export default function RouteDesOrques() {
     setShowAlertForm(true);
   };
 
+  const refreshPosition = () => {
+    setGeoError("");
+    if (!navigator.geolocation) {
+      setGeoError("La géolocalisation n'est pas disponible sur cet appareil.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (p) => updatePosition(p.coords.latitude, p.coords.longitude),
+      () => setGeoError("Position refusée. Réessaie ou vérifie l'autorisation de localisation."),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   const locateForAlert = () => {
     setGeoError("");
     if (!navigator.geolocation) {
@@ -1244,15 +1253,6 @@ export default function RouteDesOrques() {
   const myConvoy = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
   const myConvoyMemberIds = myConvoy ? myConvoy.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
 
-  const CHART_MAX_KM = 50;
-  const CHART_R = 125;
-  const center = 150;
-  const chartPoint = (dist, brg) => {
-    const r = Math.min(1, Math.sqrt(dist / CHART_MAX_KM)) * CHART_R;
-    const rad = toRad(brg);
-    return { x: center + r * Math.sin(rad), y: center - r * Math.cos(rad) };
-  };
-
   return (
     <div className="min-h-screen flex flex-col" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
       <style>{FONTS}</style>
@@ -1597,7 +1597,7 @@ export default function RouteDesOrques() {
               <div className="flex items-center justify-between">
                 <span className="text-sm" style={{ color: COLORS.muted }}>Mettre à jour ma position</span>
                 <div className="flex gap-2">
-                  <button onClick={() => useGeolocation((lat) => updatePosition(parseFloat(lat), pos.lon), () => {})}
+                  <button onClick={refreshPosition}
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
                     <LocateFixed size={13} /> Actualiser
                   </button>
@@ -1608,9 +1608,9 @@ export default function RouteDesOrques() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <input defaultValue={pos?.lat} onBlur={(e) => pos && updatePosition(parseFloat(e.target.value) || pos.lat, pos.lon)}
+                <input key={`lat-${pos?.lat}`} defaultValue={pos?.lat} onBlur={(e) => pos && updatePosition(parseFloat(e.target.value) || pos.lat, pos.lon)}
                   inputMode="decimal" className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
-                <input defaultValue={pos?.lon} onBlur={(e) => pos && updatePosition(pos.lat, parseFloat(e.target.value) || pos.lon)}
+                <input key={`lon-${pos?.lon}`} defaultValue={pos?.lon} onBlur={(e) => pos && updatePosition(pos.lat, parseFloat(e.target.value) || pos.lon)}
                   inputMode="decimal" className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
               </div>
               <div>
