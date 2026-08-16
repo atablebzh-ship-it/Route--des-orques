@@ -531,17 +531,19 @@ export default function RouteDesOrques() {
 
   useEffect(() => {
     (async () => {
-      try {
-        const res = await storage.get("profile", false);
-        if (res?.value) {
-          const p = JSON.parse(res.value);
-          setProfile(p);
-          if (p.lastLat && p.lastLon) setPos({ lat: p.lastLat, lon: p.lastLon });
-        }
+  const { data: p } = await supabase
+  .from("profiles")
+  .select("*")
+  .eq("id", session?.user?.id)
+  .maybeSingle();
+if (p) {
+  setProfile({ id: p.id, pseudo: p.pseudo, boatName: p.boat_name });
+  if (p.last_lat && p.last_lon) setPos({ lat: p.last_lat, lon: p.last_lon });
+}
       } catch (e) {}
       setReady(true);
     })();
-  }, []);
+  }, [session]);
 
   // --- Notifications push ---
   const sendPush = useCallback(async (boatIds, title, body, url) => {
