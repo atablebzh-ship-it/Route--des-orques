@@ -844,9 +844,15 @@ export default function RouteDesOrques() {
     const lon = parseFloat(obLon);
     if (!obPseudo.trim() || !obBoat.trim() || Number.isNaN(lat) || Number.isNaN(lon)) return;
     const p = { id: session.user.id, pseudo: obPseudo.trim(), boatName: obBoat.trim(), lastLat: lat, lastLon: lon };
-    try {
-      await storage.set("profile", JSON.stringify(p), false);
-    } catch (e) {}
+  try {
+  await supabase.from("profiles").upsert({
+    id: p.id,
+    pseudo: p.pseudo,
+    boat_name: p.boatName,
+    last_lat: lat,
+    last_lon: lon,
+  });
+} catch (e) {}
     setProfile(p);
     setPos({ lat, lon });
   };
