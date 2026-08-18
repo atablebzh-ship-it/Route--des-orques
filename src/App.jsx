@@ -531,6 +531,7 @@ export default function RouteDesOrques() {
 
   useEffect(() => {
     (async () => {
+      try {
   const { data: p } = await supabase
   .from("profiles")
   .select("*")
