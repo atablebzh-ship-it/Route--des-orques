@@ -1204,28 +1204,27 @@ if (p) {
               <input value={obBoat} onChange={(e) => setObBoat(e.target.value)} placeholder="Ex. Albatros II"
                 className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
             </Field>
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>{t.positionLabel}</label>
-                <div className="flex gap-2">
-                  <button onClick={() => useGeolocation(setObLat, setObLon)}
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                    <LocateFixed size={13} /> {t.locateMe}
-                  </button>
-                  <button onClick={() => triggerImport("onboarding")}
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
-                    <Download size={13} /> GPX
-                  </button>
+                         <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>{t.positionLabel}</label>
+                  <div className="flex gap-2">
+                    <button onClick={() => useGeolocation(setObLat, setObLon)}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                      <LocateFixed size={13} /> {t.locateMe}
+                    </button>
+                    <button onClick={() => triggerImport("onboarding")}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
+                      <Download size={13} /> GPX
+                    </button>
+                  </div>
                 </div>
+                {obLat && obLon && (
+                  <p className="text-xs mt-1" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
+                    {parseFloat(obLat).toFixed(4)}, {parseFloat(obLon).toFixed(4)}
+                  </p>
+                )}
+                {geoError && <p className="text-xs mt-1" style={{ color: COLORS.orange }}>{geoError}</p>}
               </div>
-              <div className="flex gap-2 mt-1">
-                <input value={obLat} onChange={(e) => setObLat(e.target.value)} placeholder="Latitude" inputMode="decimal"
-                  className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
-                <input value={obLon} onChange={(e) => setObLon(e.target.value)} placeholder="Longitude" inputMode="decimal"
-                  className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
-              </div>
-              {geoError && <p className="text-xs mt-1" style={{ color: COLORS.orange }}>{geoError}</p>}
-            </div>
             <button onClick={completeOnboarding} className="w-full py-2.5 rounded font-medium text-sm mt-2"
               style={{ background: COLORS.orange, color: "#1A0E08" }}>
               {t.joinRoute}
