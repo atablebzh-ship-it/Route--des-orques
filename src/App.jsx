@@ -1036,7 +1036,19 @@ if (p) {
     setSaving(false);
   };
 
-  const openConvoyForm = () => {
+  const handlePickLocation = (lat, lon) => {
+  if (pickTarget === "rdv") { setCvRdvLat(lat); setCvRdvLon(lon); }
+  if (pickTarget === "dest") { setCvDestLat(lat); setCvDestLon(lon); }
+  setPickTarget(null);
+  setShowConvoyForm(true);
+  setTab("convois");
+};
+
+const startPicking = (target) => {
+  setPickTarget(target);
+  setShowConvoyForm(false);
+  setTab("carte");
+};const openConvoyForm = () => {
     setCvRdvLat(pos?.lat ?? null);
     setCvRdvLon(pos?.lon ?? null);
     setShowConvoyForm(true);
