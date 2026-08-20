@@ -1620,7 +1620,7 @@ if (p) {
 
       {/* Barre d'onglets flottante */}
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
-        <div className="flex rounded-full overflow-hidden shadow-lg" style={{ background: "rgba(18,40,63,0.92)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.cyanDim}` }}>
+       <div className="flex rounded-full shadow-lg" style={{ background: "rgba(18,40,63,0.92)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.cyanDim}`, padding: "4px 6px", gap: 8 }}>
           <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
           <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
           <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><AlertTriangle size={17} /></IconBtn>
