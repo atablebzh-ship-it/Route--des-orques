@@ -1294,58 +1294,7 @@ if (p) {
                 showShipyards={showShipyards}
               />
             </div>
-            <div className="flex items-center justify-center mb-3">
-              <button onClick={() => setShowShipyards((v) => !v)}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded"
-                style={{
-                  background: showShipyards ? COLORS.greenDim : "transparent",
-                  color: showShipyards ? COLORS.green : COLORS.muted,
-                  border: `1px solid ${showShipyards ? COLORS.green : COLORS.border}`,
-                }}>
-                🔧 Chantiers navals {showShipyards ? "affichés" : "masqués"}
-              </button>
-            </div>
-            <p className="text-center text-xs mb-4" style={{ color: COLORS.muted }}>
-              <span style={{ color: COLORS.orange }}>●</span> toi &nbsp;
-              <span style={{ color: COLORS.cyan }}>●</span> plaisanciers &nbsp;
-              <span style={{ color: COLORS.green }}>●</span> mon convoi &nbsp;
-              <span style={{ color: COLORS.orange }}>◎</span> orques récentes &nbsp;
-              <span style={{ color: COLORS.muted }}>◎</span> historique &nbsp;
-              🔧 chantier naval
-            </p>
-
-            <button onClick={exportChartGPX}
-              className="w-full py-2 rounded text-xs mb-4 flex items-center justify-center gap-2"
-              style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-              <Download size={13} /> Exporter en GPX (OpenCPN, Navionics, Garmin…)
-            </button>
-
-            {others.length === 0 ? (
-              <Panel className="p-4 text-center">
-                <p className="text-sm" style={{ color: COLORS.muted }}>
-                  Aucun plaisancier à proximité pour l'instant. Sois le premier à signaler ta position.
-                </p>
-              </Panel>
-            ) : (
-              <div className="space-y-2">
-                {others.map((b) => (
-                  <Panel key={b.id} className="p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: COLORS.text }}>
-                        {b.pseudo} <span style={{ color: COLORS.muted, fontWeight: 400 }}>· {b.boatName}</span>
-                      </p>
-                      <p className="text-xs mt-0.5" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                        {b.dist?.toFixed(1)} km · cap {Math.round(b.brg)}° · {b.stale ? "hors ligne" : timeAgo(b.updatedAt)}
-                      </p>
-                    </div>
-                    <button onClick={() => proposeConvoyViaChat(b)} className="text-xs px-3 py-1.5 rounded"
-                      style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                      Contacter
-                    </button>
-                  </Panel>
-                ))}
-              </div>
-            )}
+            
           </div>
         )}
 
