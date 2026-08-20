@@ -280,7 +280,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
   return (
     <div
       ref={mapElRef}
-      style={{ width: "100%", height: "320px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}
+     style={{ width: "100%", height: "100%" }}
     />
   );
 }
