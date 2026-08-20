@@ -196,10 +196,13 @@ const inputStyle = {
 };
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards }) {
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, pickMode, onPickLocation }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
-  const layerRef = useRef(null);
+  const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
+  const onPickLocationRef = useRef(onPickLocation);
+  useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
+  useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
 
   useEffect(() => {
     if (!mapElRef.current || mapRef.current || !window.L) return;
