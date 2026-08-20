@@ -1281,7 +1281,7 @@ if (p) {
       </div>
 
       {/* Header flottant */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3"
+      <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 py-3"
         style={{ background: "rgba(10,22,40,0.82)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${COLORS.border}` }}>
         <div className="flex items-center gap-2">
           <Compass size={22} style={{ color: COLORS.orange }} />
@@ -1297,7 +1297,7 @@ if (p) {
 
       {/* Panneau flottant pour les onglets autres que la carte */}
       {tab !== "carte" && (
-        <div className="absolute left-0 right-0 z-20 flex justify-center px-3" style={{ bottom: 92 }}>
+        <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 92 }}>
           <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "62vh", background: "rgba(15,31,56,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
             <div className="overflow-y-auto px-4 py-4" style={{ flex: 1 }}>
 
