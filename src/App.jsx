@@ -162,7 +162,7 @@ function IconBtn({ onClick, active, children, label }) {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-1 flex-1 py-2.5"
+     className="flex flex-col items-center justify-center gap-1 px-4 py-2.5"
       style={{
         color: active ? COLORS.cyan : COLORS.text,
         background: active ? COLORS.cyanDim : "transparent",
