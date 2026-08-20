@@ -5,6 +5,10 @@ import { storage, supabase } from "./lib/storage.js";
 
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+.leaflet-top.leaflet-left {
+  margin-top: 64px !important;
+}
 `;
 
 const COLORS = {
