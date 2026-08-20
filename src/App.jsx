@@ -1263,10 +1263,10 @@ if (p) {
   const myConvoyMemberIds = myConvoy ? myConvoy.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
 
   return (
- <div className="min-h-screen flex flex-col" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
-  <style>{FONTS}</style>
+<div className="min-h-screen flex flex-col" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
   <div className="flex flex-col overflow-hidden" style={{ height: "100vh" }}>
-      <style>{FONTS}</style>
+  <style>{FONTS}</style>
+ 
 
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: COLORS.border }}>
         <div className="flex items-center gap-2">
@@ -1622,7 +1622,7 @@ if (p) {
         <IconBtn onClick={() => setTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={17} /></IconBtn>
         <IconBtn onClick={() => setTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={17} /></IconBtn>
       </div>
-
+    </div>
       {showAlertForm && (
         <div className="fixed inset-0 flex items-end justify-center z-50" style={{ background: "rgba(0,0,0,0.6)" }}>
           <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
