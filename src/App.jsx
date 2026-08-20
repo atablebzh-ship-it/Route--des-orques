@@ -160,12 +160,16 @@ function Badge({ children, color, bg }) {
 
 function IconBtn({ onClick, active, children, label }) {
   return (
-    <button
-      onClick={onClick}
-     className="flex flex-col items-center justify-center gap-1 px-4 py-2.5"
-      minWidth: 60,
-      }}
-    >
+           <button
+          onClick={onClick}
+          className="flex flex-col items-center justify-center gap-1 px-4 py-2.5"
+          style={{
+            color: active ? COLORS.cyan : COLORS.text,
+            background: active ? COLORS.cyanDim : "transparent",
+            opacity: active ? 1 : 0.75,
+            minWidth: 60,
+          }}
+        >
       {children}
       <span className="text-xs font-medium" style={{ fontFamily: "Inter, sans-serif" }}>{label}</span>
     </button>
