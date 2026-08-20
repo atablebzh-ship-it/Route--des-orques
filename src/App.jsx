@@ -1263,7 +1263,9 @@ if (p) {
   const myConvoyMemberIds = myConvoy ? myConvoy.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
 
   return (
- <div className="h-screen flex flex-col overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
+ <div className="min-h-screen flex flex-col" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
+  <style>{FONTS}</style>
+  <div className="flex flex-col overflow-hidden" style={{ height: "100vh" }}>
       <style>{FONTS}</style>
 
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: COLORS.border }}>
