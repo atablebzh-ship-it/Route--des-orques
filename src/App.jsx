@@ -1279,10 +1279,10 @@ if (p) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-2">
+           <div className={tab === "carte" ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto px-4 py-4 pb-2"}>
        {tab === "carte" && (
-  <div className="flex flex-col" style={{ height: "60vh" }}>
-    <div className="flex-1 rounded-lg overflow-hidden mb-3" style={{ border: `1px solid ${COLORS.border}` }}>
+ <div className="flex flex-col h-full">
+  <div className="flex-1 overflow-hidden" style={{ border: `1px solid ${COLORS.border}` }}>
       <MarineMap
                 pos={pos}
                 others={others}
