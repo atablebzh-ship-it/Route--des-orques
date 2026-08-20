@@ -1262,13 +1262,27 @@ if (p) {
   const myConvoy = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
   const myConvoyMemberIds = myConvoy ? myConvoy.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
 
-  return (
-<div className="min-h-screen flex flex-col" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
-  <div className="flex flex-col overflow-hidden" style={{ height: "100vh" }}>
-  <style>{FONTS}</style>
- 
+    return (
+    <div className="relative overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif", height: "100vh" }}>
+      <style>{FONTS}</style>
 
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: COLORS.border }}>
+      {/* Carte marine plein écran, en fond */}
+      <div className="absolute inset-0">
+        <MarineMap
+          pos={pos}
+          others={others}
+          alertsWithDist={alertsWithDist}
+          myConvoy={myConvoy}
+          myConvoyMemberIds={myConvoyMemberIds}
+          now={now}
+          onSelectBoat={setSelectedBoat}
+          showShipyards={showShipyards}
+        />
+      </div>
+
+      {/* Header flottant */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3"
+        style={{ background: "rgba(10,22,40,0.82)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${COLORS.border}` }}>
         <div className="flex items-center gap-2">
           <Compass size={22} style={{ color: COLORS.orange }} />
           <span className="font-semibold tracking-wide text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
@@ -1281,348 +1295,343 @@ if (p) {
         </div>
       </div>
 
-           <div className={tab === "carte" ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto px-4 py-4 pb-2"}>
-       {tab === "carte" && (
- <div className="flex flex-col h-full">
-  <div className="flex-1 overflow-hidden" style={{ border: `1px solid ${COLORS.border}` }}>
-      <MarineMap
-                pos={pos}
-                others={others}
-                alertsWithDist={alertsWithDist}
-                myConvoy={myConvoy}
-                myConvoyMemberIds={myConvoyMemberIds}
-                now={now}
-                onSelectBoat={setSelectedBoat}
-                showShipyards={showShipyards}
-              />
-            </div>
-            
-          </div>
-        )}
+      {/* Panneau flottant pour les onglets autres que la carte */}
+      {tab !== "carte" && (
+        <div className="absolute left-0 right-0 z-20 flex justify-center px-3" style={{ bottom: 92 }}>
+          <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "62vh", background: "rgba(15,31,56,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
+            <div className="overflow-y-auto px-4 py-4" style={{ flex: 1 }}>
 
-        {tab === "convois" && (
-          <div className="space-y-2">
-            <button onClick={openConvoyForm}
-              className="w-full py-2.5 rounded font-medium text-sm mb-2 flex items-center justify-center gap-2"
-              style={{ background: COLORS.green, color: "#0A1F14" }}>
-              <Plus size={16} /> Créer un convoi
-            </button>
+              {tab === "convois" && (
+                <div className="space-y-2">
+                  <button onClick={openConvoyForm}
+                    className="w-full py-2.5 rounded font-medium text-sm mb-2 flex items-center justify-center gap-2"
+                    style={{ background: COLORS.green, color: "#0A1F14" }}>
+                    <Plus size={16} /> Créer un convoi
+                  </button>
 
-            {convoys.length === 0 ? (              <Panel className="p-4 text-center">
-                <p className="text-sm" style={{ color: COLORS.muted }}>Aucun convoi pour l'instant. Crée le premier et invite les plaisanciers proches.</p>
-              </Panel>
-            ) : (
-              convoys.map((cv) => {
-                const me = cv.members.find((m) => m.boatId === profile.id);
-                const isOrganizer = cv.organizerId === profile.id;
-                const confirmed = cv.members.filter((m) => m.status === "confirme");
-                const pending = cv.members.filter((m) => m.status === "en_attente");
-                const open = expandedConvoy === cv.id;
-                return (
-                  <Panel key={cv.id} className="p-3">
-                    <button className="w-full text-left" onClick={() => setExpandedConvoy(open ? null : cv.id)}>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-sm font-medium" style={{ color: COLORS.text }}>{cv.name}</p>
-                          <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-                            organisé par {cv.organizerPseudo} · {cv.organizerBoat}
-                          </p>
-                        </div>
-                        {me ? (
-                          <Badge color={me.status === "confirme" ? COLORS.green : COLORS.orange}
-                            bg={me.status === "confirme" ? COLORS.greenDim : COLORS.orangeDim}>
-                            {me.status === "confirme" ? "Confirmé" : "En attente"}
-                          </Badge>
-                        ) : (
-                          <Users size={16} style={{ color: COLORS.muted }} />
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                        <span className="flex items-center gap-1"><Clock size={12} /> départ {fmtDateTime(cv.departureAt)}</span>
-                        <span className="flex items-center gap-1"><Flag size={12} /> arrivée {fmtDateTime(cv.etaAt)}</span>
-                      </div>
-                      {(cv.rdvLabel || cv.destLabel) && (
-                        <p className="text-xs mt-1" style={{ color: COLORS.muted }}>
-                          {cv.rdvLabel && <>RDV : {cv.rdvLabel} </>}{cv.destLabel && <>→ {cv.destLabel}</>}
-                        </p>
-                      )}
-                      <p className="text-xs mt-1" style={{ color: COLORS.cyan }}>
-                        {confirmed.length} confirmé{confirmed.length > 1 ? "s" : ""}{pending.length > 0 ? ` · ${pending.length} en attente` : ""}
-                      </p>
-                    </button>
-
-                    {open && (
-                      <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: COLORS.border }}>
-                        <button onClick={() => exportConvoyGPX(cv)}
-                          className="w-full py-1.5 rounded text-xs flex items-center justify-center gap-2"
-                          style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                          <Download size={12} /> Exporter le point de RDV en GPX
-                        </button>
-                        {confirmed.map((m) => (
-                          <div key={m.boatId} className="flex items-center justify-between text-sm">
-                            <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
-                            <Check size={14} style={{ color: COLORS.green }} />
-                          </div>
-                        ))}
-                        {isOrganizer && pending.map((m) => (
-                          <div key={m.boatId} className="flex items-center justify-between text-sm">
-                            <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
-                            <div className="flex gap-2">
-                              <button onClick={() => respondRequest(cv.id, m.boatId, true)}
-                                className="text-xs px-2 py-1 rounded" style={{ color: COLORS.green, border: `1px solid ${COLORS.greenDim}` }}>Accepter</button>
-                              <button onClick={() => respondRequest(cv.id, m.boatId, false)}
-                                className="text-xs px-2 py-1 rounded" style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>Refuser</button>
-                            </div>
-                          </div>
-                        ))}
-                        {!me && (
-                          <button onClick={() => requestJoin(cv.id)}
-                            className="w-full py-2 rounded text-sm mt-1"
-                            style={{ background: COLORS.cyanDim, color: COLORS.cyan }}>
-                            Demander à rejoindre
-                          </button>
-                        )}
-                        {me && (
-                          <button onClick={() => leaveConvoy(cv.id)}
-                            className="w-full py-2 rounded text-sm mt-1"
-                            style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>
-                            {isOrganizer ? "Annuler le convoi" : "Quitter le convoi"}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </Panel>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {tab === "alerts" && (
-          <div className="space-y-2">
-            <button onClick={openAlertForm}
-              className="w-full py-2.5 rounded font-medium text-sm mb-2 flex items-center justify-center gap-2"
-              style={{ background: COLORS.orange, color: "#1A0E08" }}>
-              <Plus size={16} /> Signaler des orques
-            </button>
-
-            <div className="flex gap-2 mb-2">
-              {[["recentes", t.alertsRecent], ["historique", t.alertsHistory]].map(([val, label]) => (
-                <button key={val} onClick={() => setAlertsView(val)}
-                  className="flex-1 text-xs py-1.5 rounded"
-                  style={{
-                    background: alertsView === val ? COLORS.orangeDim : "transparent",
-                    color: alertsView === val ? COLORS.orange : COLORS.muted,
-                    border: `1px solid ${alertsView === val ? COLORS.orangeDim : COLORS.border}`,
-                  }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {(() => {
-              const recentAlerts = alertsWithDist.filter((a) => now - a.createdAt < RECENT_ALERT_MS);
-              const historyAlerts = alertsWithDist.filter((a) => now - a.createdAt >= RECENT_ALERT_MS);
-              const shown = alertsView === "recentes" ? recentAlerts : historyAlerts;
-              const emptyLabel = alertsView === "recentes" ? t.noRecentAlerts : t.noHistoryAlerts;
-              return (
-                <>
-                  {shown.length === 0 ? (
+                  {convoys.length === 0 ? (
                     <Panel className="p-4 text-center">
-                      <p className="text-sm" style={{ color: COLORS.muted }}>{emptyLabel}</p>
+                      <p className="text-sm" style={{ color: COLORS.muted }}>Aucun convoi pour l'instant. Crée le premier et invite les plaisanciers proches.</p>
                     </Panel>
                   ) : (
-                    <div className="space-y-2">
-                      {shown.map((a) => (
-                        <Panel key={a.id} className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              <AlertTriangle size={16} style={{ color: alertsView === "recentes" ? COLORS.orange : COLORS.muted }} />
-                              <span className="text-sm font-medium" style={{ color: COLORS.text }}>{a.count} orque{a.count > 1 ? "s" : ""}</span>
+                    convoys.map((cv) => {
+                      const me = cv.members.find((m) => m.boatId === profile.id);
+                      const isOrganizer = cv.organizerId === profile.id;
+                      const confirmed = cv.members.filter((m) => m.status === "confirme");
+                      const pending = cv.members.filter((m) => m.status === "en_attente");
+                      const open = expandedConvoy === cv.id;
+                      return (
+                        <Panel key={cv.id} className="p-3">
+                          <button className="w-full text-left" onClick={() => setExpandedConvoy(open ? null : cv.id)}>
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="text-sm font-medium" style={{ color: COLORS.text }}>{cv.name}</p>
+                                <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                                  organisé par {cv.organizerPseudo} · {cv.organizerBoat}
+                                </p>
+                              </div>
+                              {me ? (
+                                <Badge color={me.status === "confirme" ? COLORS.green : COLORS.orange}
+                                  bg={me.status === "confirme" ? COLORS.greenDim : COLORS.orangeDim}>
+                                  {me.status === "confirme" ? "Confirmé" : "En attente"}
+                                </Badge>
+                              ) : (
+                                <Users size={16} style={{ color: COLORS.muted }} />
+                              )}
                             </div>
-                            <span className="text-xs" style={{ color: COLORS.muted }}>
-                              {alertsView === "recentes" ? timeAgo(a.createdAt) : fmtDateTime(new Date(a.createdAt).toISOString())}
-                            </span>
-                          </div>
-                          {a.notes && <p className="text-sm mt-1.5" style={{ color: COLORS.text }}>{a.notes}</p>}
-                          <div className="flex items-center justify-between mt-1.5">
-                            <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                              {a.author} · {a.boatName}{a.dist !== null ? ` · ${a.dist.toFixed(1)} km (cap ${Math.round(a.brg)}°)` : ""}
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
+                              <span className="flex items-center gap-1"><Clock size={12} /> départ {fmtDateTime(cv.departureAt)}</span>
+                              <span className="flex items-center gap-1"><Flag size={12} /> arrivée {fmtDateTime(cv.etaAt)}</span>
+                            </div>
+                            {(cv.rdvLabel || cv.destLabel) && (
+                              <p className="text-xs mt-1" style={{ color: COLORS.muted }}>
+                                {cv.rdvLabel && <>RDV : {cv.rdvLabel} </>}{cv.destLabel && <>→ {cv.destLabel}</>}
+                              </p>
+                            )}
+                            <p className="text-xs mt-1" style={{ color: COLORS.cyan }}>
+                              {confirmed.length} confirmé{confirmed.length > 1 ? "s" : ""}{pending.length > 0 ? ` · ${pending.length} en attente` : ""}
                             </p>
-                            <button onClick={() => exportAlertGPX(a)} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
-                              <Download size={14} />
-                            </button>
-                          </div>
+                          </button>
+
+                          {open && (
+                            <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: COLORS.border }}>
+                              <button onClick={() => exportConvoyGPX(cv)}
+                                className="w-full py-1.5 rounded text-xs flex items-center justify-center gap-2"
+                                style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                                <Download size={12} /> Exporter le point de RDV en GPX
+                              </button>
+                              {confirmed.map((m) => (
+                                <div key={m.boatId} className="flex items-center justify-between text-sm">
+                                  <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
+                                  <Check size={14} style={{ color: COLORS.green }} />
+                                </div>
+                              ))}
+                              {isOrganizer && pending.map((m) => (
+                                <div key={m.boatId} className="flex items-center justify-between text-sm">
+                                  <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
+                                  <div className="flex gap-2">
+                                    <button onClick={() => respondRequest(cv.id, m.boatId, true)}
+                                      className="text-xs px-2 py-1 rounded" style={{ color: COLORS.green, border: `1px solid ${COLORS.greenDim}` }}>Accepter</button>
+                                    <button onClick={() => respondRequest(cv.id, m.boatId, false)}
+                                      className="text-xs px-2 py-1 rounded" style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>Refuser</button>
+                                  </div>
+                                </div>
+                              ))}
+                              {!me && (
+                                <button onClick={() => requestJoin(cv.id)}
+                                  className="w-full py-2 rounded text-sm mt-1"
+                                  style={{ background: COLORS.cyanDim, color: COLORS.cyan }}>
+                                  Demander à rejoindre
+                                </button>
+                              )}
+                              {me && (
+                                <button onClick={() => leaveConvoy(cv.id)}
+                                  className="w-full py-2 rounded text-sm mt-1"
+                                  style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>
+                                  {isOrganizer ? "Annuler le convoi" : "Quitter le convoi"}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </Panel>
-                      ))}
-                    </div>
+                      );
+                    })
                   )}
-
-                  {alertsView === "historique" && (
-                    <Panel className="p-4 mt-3">
-                      <p className="text-xs uppercase tracking-wider mb-1.5" style={{ color: COLORS.muted }}>{t.officialSourcesTitle}</p>
-                      <p className="text-sm mb-2" style={{ color: COLORS.text }}>{t.officialSourcesDesc}</p>
-                      <div className="space-y-1.5">
-                        {OFFICIAL_ORCA_SOURCES.map((s) => (
-                          <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
-                            className="block text-sm underline" style={{ color: COLORS.cyan }}>
-                            {s.label}
-                          </a>
-                        ))}
-                      </div>
-                    </Panel>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-        {tab === "chat" && (
-          <div className="flex flex-col" style={{ minHeight: "60vh" }}>
-            <div className="flex-1 space-y-2">
-              {chat.length === 0 && (
-                <p className="text-center text-sm mt-6" style={{ color: COLORS.muted }}>Canal général — coordonne-toi ici.</p>
+                </div>
               )}
-              {chat.map((m) => (
-                <div key={m.id} className={m.author === profile.pseudo ? "text-right" : "text-left"}>
-                  <div className="inline-block px-3 py-2 rounded-lg max-w-[80%] text-left"
-                    style={{ background: m.author === profile.pseudo ? COLORS.cyanDim : COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
-                    <p className="text-xs mb-0.5" style={{ color: COLORS.muted }}>{m.author} · {m.boatName}</p>
-                    <p className="text-sm" style={{ color: COLORS.text }}>{m.text}</p>
+
+              {tab === "alerts" && (
+                <div className="space-y-2">
+                  <button onClick={openAlertForm}
+                    className="w-full py-2.5 rounded font-medium text-sm mb-2 flex items-center justify-center gap-2"
+                    style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                    <Plus size={16} /> Signaler des orques
+                  </button>
+
+                  <div className="flex gap-2 mb-2">
+                    {[["recentes", t.alertsRecent], ["historique", t.alertsHistory]].map(([val, label]) => (
+                      <button key={val} onClick={() => setAlertsView(val)}
+                        className="flex-1 text-xs py-1.5 rounded"
+                        style={{
+                          background: alertsView === val ? COLORS.orangeDim : "transparent",
+                          color: alertsView === val ? COLORS.orange : COLORS.muted,
+                          border: `1px solid ${alertsView === val ? COLORS.orangeDim : COLORS.border}`,
+                        }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(() => {
+                    const recentAlerts = alertsWithDist.filter((a) => now - a.createdAt < RECENT_ALERT_MS);
+                    const historyAlerts = alertsWithDist.filter((a) => now - a.createdAt >= RECENT_ALERT_MS);
+                    const shown = alertsView === "recentes" ? recentAlerts : historyAlerts;
+                    const emptyLabel = alertsView === "recentes" ? t.noRecentAlerts : t.noHistoryAlerts;
+                    return (
+                      <>
+                        {shown.length === 0 ? (
+                          <Panel className="p-4 text-center">
+                            <p className="text-sm" style={{ color: COLORS.muted }}>{emptyLabel}</p>
+                          </Panel>
+                        ) : (
+                          <div className="space-y-2">
+                            {shown.map((a) => (
+                              <Panel key={a.id} className="p-3">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <AlertTriangle size={16} style={{ color: alertsView === "recentes" ? COLORS.orange : COLORS.muted }} />
+                                    <span className="text-sm font-medium" style={{ color: COLORS.text }}>{a.count} orque{a.count > 1 ? "s" : ""}</span>
+                                  </div>
+                                  <span className="text-xs" style={{ color: COLORS.muted }}>
+                                    {alertsView === "recentes" ? timeAgo(a.createdAt) : fmtDateTime(new Date(a.createdAt).toISOString())}
+                                  </span>
+                                </div>
+                                {a.notes && <p className="text-sm mt-1.5" style={{ color: COLORS.text }}>{a.notes}</p>}
+                                <div className="flex items-center justify-between mt-1.5">
+                                  <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
+                                    {a.author} · {a.boatName}{a.dist !== null ? ` · ${a.dist.toFixed(1)} km (cap ${Math.round(a.brg)}°)` : ""}
+                                  </p>
+                                  <button onClick={() => exportAlertGPX(a)} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
+                                    <Download size={14} />
+                                  </button>
+                                </div>
+                              </Panel>
+                            ))}
+                          </div>
+                        )}
+
+                        {alertsView === "historique" && (
+                          <Panel className="p-4 mt-3">
+                            <p className="text-xs uppercase tracking-wider mb-1.5" style={{ color: COLORS.muted }}>{t.officialSourcesTitle}</p>
+                            <p className="text-sm mb-2" style={{ color: COLORS.text }}>{t.officialSourcesDesc}</p>
+                            <div className="space-y-1.5">
+                              {OFFICIAL_ORCA_SOURCES.map((s) => (
+                                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                                  className="block text-sm underline" style={{ color: COLORS.cyan }}>
+                                  {s.label}
+                                </a>
+                              ))}
+                            </div>
+                          </Panel>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {tab === "chat" && (
+                <div className="flex flex-col" style={{ minHeight: "30vh" }}>
+                  <div className="flex-1 space-y-2">
+                    {chat.length === 0 && (
+                      <p className="text-center text-sm mt-6" style={{ color: COLORS.muted }}>Canal général — coordonne-toi ici.</p>
+                    )}
+                    {chat.map((m) => (
+                      <div key={m.id} className={m.author === profile.pseudo ? "text-right" : "text-left"}>
+                        <div className="inline-block px-3 py-2 rounded-lg max-w-[80%] text-left"
+                          style={{ background: m.author === profile.pseudo ? COLORS.cyanDim : COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
+                          <p className="text-xs mb-0.5" style={{ color: COLORS.muted }}>{m.author} · {m.boatName}</p>
+                          <p className="text-sm" style={{ color: COLORS.text }}>{m.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={chatEndRef} />
                   </div>
                 </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-          </div>
-        )}
+              )}
 
-        {tab === "profile" && (
-          <div className="space-y-4">
-            <Panel className="p-4">
-              <p className="text-lg font-medium" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>{profile.pseudo}</p>
-              <p className="text-sm" style={{ color: COLORS.muted }}>{profile.boatName}</p>
-              {session?.user?.email && <p className="text-xs mt-1" style={{ color: COLORS.muted }}>{session.user.email}</p>}
-              {pos && <p className="text-xs mt-2" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>{pos.lat.toFixed(5)}, {pos.lon.toFixed(5)}</p>}
-            </Panel>
+              {tab === "profile" && (
+                <div className="space-y-4">
+                  <Panel className="p-4">
+                    <p className="text-lg font-medium" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>{profile.pseudo}</p>
+                    <p className="text-sm" style={{ color: COLORS.muted }}>{profile.boatName}</p>
+                    {session?.user?.email && <p className="text-xs mt-1" style={{ color: COLORS.muted }}>{session.user.email}</p>}
+                    {pos && <p className="text-xs mt-2" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>{pos.lat.toFixed(5)}, {pos.lon.toFixed(5)}</p>}
+                  </Panel>
 
-            <Panel className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm" style={{ color: COLORS.text }}>Notifications</p>
-                  <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-                    {pushStatus === "actif" && "Actives — alertes orques, convois et demandes reçues même appli fermée"}
-                    {pushStatus === "inactif" && "Reçois une alerte même quand l'appli est fermée"}
-                    {pushStatus === "refuse" && "Autorisation refusée — active-la dans les réglages de ton navigateur"}
-                    {pushStatus === "indisponible" && "Non disponibles sur ce navigateur/appareil"}
-                    {pushStatus === "inconnu" && "Vérification…"}
-                  </p>
-                </div>
-                {pushStatus === "actif" ? (
-                  <span className="px-3 py-1.5 rounded text-xs flex items-center gap-1 shrink-0" style={{ background: COLORS.green, color: "#0A1F14" }}>
-                    <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />
-                    Actif
-                  </span>
-                ) : pushStatus === "inactif" ? (
-                  <button onClick={subscribeToPush} className="px-3 py-1.5 rounded text-xs shrink-0"
-                    style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                    Activer
+                  <Panel className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm" style={{ color: COLORS.text }}>Notifications</p>
+                        <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                          {pushStatus === "actif" && "Actives — alertes orques, convois et demandes reçues même appli fermée"}
+                          {pushStatus === "inactif" && "Reçois une alerte même quand l'appli est fermée"}
+                          {pushStatus === "refuse" && "Autorisation refusée — active-la dans les réglages de ton navigateur"}
+                          {pushStatus === "indisponible" && "Non disponibles sur ce navigateur/appareil"}
+                          {pushStatus === "inconnu" && "Vérification…"}
+                        </p>
+                      </div>
+                      {pushStatus === "actif" ? (
+                        <span className="px-3 py-1.5 rounded text-xs flex items-center gap-1 shrink-0" style={{ background: COLORS.green, color: "#0A1F14" }}>
+                          <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />
+                          Actif
+                        </span>
+                      ) : pushStatus === "inactif" ? (
+                        <button onClick={subscribeToPush} className="px-3 py-1.5 rounded text-xs shrink-0"
+                          style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                          Activer
+                        </button>
+                      ) : null}
+                    </div>
+                  </Panel>
+
+                  <Panel className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm" style={{ color: COLORS.text }}>Suivi GPS du téléphone</p>
+                        <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                          {gpsTracking ? "Actif — ta position se met à jour automatiquement en navigation" : "Envoie ta position en continu sans avoir à l'actualiser à la main"}
+                        </p>
+                      </div>
+                      <button onClick={toggleTracking} className="px-3 py-1.5 rounded text-xs flex items-center gap-1 shrink-0"
+                        style={{
+                          background: gpsTracking ? COLORS.green : "transparent",
+                          color: gpsTracking ? "#0A1F14" : COLORS.muted,
+                          border: `1px solid ${gpsTracking ? COLORS.green : COLORS.border}`,
+                        }}>
+                        {gpsTracking && <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />}
+                        {gpsTracking ? "Actif" : "Activer"}
+                      </button>
+                    </div>
+                  </Panel>
+
+                  <Panel className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm" style={{ color: COLORS.muted }}>Mettre à jour ma position</span>
+                      <div className="flex gap-2">
+                        <button onClick={refreshPosition}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                          <LocateFixed size={13} /> Actualiser
+                        </button>
+                        <button onClick={() => triggerImport("profile")}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
+                          <Download size={13} /> GPX
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <input key={`lat-${pos?.lat}`} defaultValue={pos?.lat} onBlur={(e) => pos && updatePosition(parseFloat(e.target.value) || pos.lat, pos.lon)}
+                        inputMode="decimal" className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
+                      <input key={`lon-${pos?.lon}`} defaultValue={pos?.lon} onBlur={(e) => pos && updatePosition(pos.lat, parseFloat(e.target.value) || pos.lon)}
+                        inputMode="decimal" className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>Statut</label>
+                      <div className="flex gap-2 mt-1">
+                        {[["en_route", "En route"], ["ancre", "À l'ancre"], ["a_quai", "À quai"]].map(([val, label]) => (
+                          <button key={val} onClick={() => { setStatus(val); setTimeout(publishMe, 50); }}
+                            className="flex-1 text-xs py-1.5 rounded"
+                            style={{ background: status === val ? COLORS.cyanDim : "transparent", color: status === val ? COLORS.cyan : COLORS.muted, border: `1px solid ${status === val ? COLORS.cyanDim : COLORS.border}` }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>Cap (degrés, optionnel)</label>
+                      <input value={heading} onChange={(e) => setHeading(e.target.value)} onBlur={() => publishMe()} placeholder="Ex. 270" inputMode="numeric"
+                        className="w-full mt-1 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
+                    </div>
+                    {saving && <p className="text-xs" style={{ color: COLORS.muted }}>Synchronisation…</p>}
+                  </Panel>
+
+                  <button onClick={leaveRoute} className="w-full py-2.5 rounded text-sm flex items-center justify-center gap-2"
+                    style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>
+                    <LogOut size={15} /> Quitter la route
                   </button>
-                ) : null}
-              </div>
-            </Panel>
-
-            <Panel className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm" style={{ color: COLORS.text }}>Suivi GPS du téléphone</p>
-                  <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-                    {gpsTracking ? "Actif — ta position se met à jour automatiquement en navigation" : "Envoie ta position en continu sans avoir à l'actualiser à la main"}
-                  </p>
+                  <button onClick={handleSignOut} className="w-full py-2.5 rounded text-sm"
+                    style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
+                    Se déconnecter
+                  </button>
                 </div>
-                <button onClick={toggleTracking} className="px-3 py-1.5 rounded text-xs flex items-center gap-1 shrink-0"
-                  style={{
-                    background: gpsTracking ? COLORS.green : "transparent",
-                    color: gpsTracking ? "#0A1F14" : COLORS.muted,
-                    border: `1px solid ${gpsTracking ? COLORS.green : COLORS.border}`,
-                  }}>
-                  {gpsTracking && <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />}
-                  {gpsTracking ? "Actif" : "Activer"}
+              )}
+
+            </div>
+
+            {tab === "chat" && (
+              <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: COLORS.border }}>
+                <input value={chatText} onChange={(e) => setChatText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                  placeholder="Écrire un message…" className="flex-1 px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                <button onClick={sendMessage} className="p-2.5 rounded" style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                  <Send size={16} />
                 </button>
               </div>
-            </Panel>
-
-            <Panel className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm" style={{ color: COLORS.muted }}>Mettre à jour ma position</span>
-                <div className="flex gap-2">
-                  <button onClick={refreshPosition}
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                    <LocateFixed size={13} /> Actualiser
-                  </button>
-                  <button onClick={() => triggerImport("profile")}
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
-                    <Download size={13} /> GPX
-                  </button>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <input key={`lat-${pos?.lat}`} defaultValue={pos?.lat} onBlur={(e) => pos && updatePosition(parseFloat(e.target.value) || pos.lat, pos.lon)}
-                  inputMode="decimal" className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
-                <input key={`lon-${pos?.lon}`} defaultValue={pos?.lon} onBlur={(e) => pos && updatePosition(pos.lat, parseFloat(e.target.value) || pos.lon)}
-                  inputMode="decimal" className="w-1/2 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
-              </div>
-              <div>
-                <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>Statut</label>
-                <div className="flex gap-2 mt-1">
-                  {[["en_route", "En route"], ["ancre", "À l'ancre"], ["a_quai", "À quai"]].map(([val, label]) => (
-                    <button key={val} onClick={() => { setStatus(val); setTimeout(publishMe, 50); }}
-                      className="flex-1 text-xs py-1.5 rounded"
-                      style={{ background: status === val ? COLORS.cyanDim : "transparent", color: status === val ? COLORS.cyan : COLORS.muted, border: `1px solid ${status === val ? COLORS.cyanDim : COLORS.border}` }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>Cap (degrés, optionnel)</label>
-                <input value={heading} onChange={(e) => setHeading(e.target.value)} onBlur={() => publishMe()} placeholder="Ex. 270" inputMode="numeric"
-                  className="w-full mt-1 px-3 py-2 rounded outline-none text-sm" style={{ ...inputStyle, fontFamily: "JetBrains Mono, monospace" }} />
-              </div>
-              {saving && <p className="text-xs" style={{ color: COLORS.muted }}>Synchronisation…</p>}
-            </Panel>
-
-            <button onClick={leaveRoute} className="w-full py-2.5 rounded text-sm flex items-center justify-center gap-2"
-              style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>
-              <LogOut size={15} /> Quitter la route
-            </button>
-            <button onClick={handleSignOut} className="w-full py-2.5 rounded text-sm"
-              style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
-              Se déconnecter
-            </button>
+            )}
           </div>
-        )}
-      </div>
-
-      {tab === "chat" && (
-        <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: COLORS.border }}>
-          <input value={chatText} onChange={(e) => setChatText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="Écrire un message…" className="flex-1 px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
-          <button onClick={sendMessage} className="p-2.5 rounded" style={{ background: COLORS.orange, color: "#1A0E08" }}>
-            <Send size={16} />
-          </button>
         </div>
       )}
 
-      <div className="flex border-t-2" style={{ borderColor: COLORS.cyanDim, background: COLORS.panelAlt }}>
-        <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><AlertTriangle size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={17} /></IconBtn>
-        <IconBtn onClick={() => setTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={17} /></IconBtn>
+      {/* Barre d'onglets flottante */}
+      <div className="absolute left-0 right-0 z-30 flex justify-center px-4" style={{ bottom: 20 }}>
+        <div className="flex rounded-full overflow-hidden shadow-lg" style={{ background: "rgba(18,40,63,0.92)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.cyanDim}` }}>
+          <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
+          <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
+          <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><AlertTriangle size={17} /></IconBtn>
+          <IconBtn onClick={() => setTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={17} /></IconBtn>
+          <IconBtn onClick={() => setTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={17} /></IconBtn>
+        </div>
       </div>
-    </div>
+
       {showAlertForm && (
         <div className="fixed inset-0 flex items-end justify-center z-50" style={{ background: "rgba(0,0,0,0.6)" }}>
           <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
@@ -1741,8 +1750,7 @@ if (p) {
 
       {renderImportModal()}
       {renderHiddenFileInput()}
-        <SeoContent />
-      </div>
-    );
-  }
-    
+      <SeoContent />
+    </div>
+  );
+}
