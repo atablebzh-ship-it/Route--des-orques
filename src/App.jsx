@@ -219,7 +219,11 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       attribution: '&copy; OpenSeaMap',
     }).addTo(map);
     layerRef.current = window.L.layerGroup().addTo(map);
-    mapRef.current = map;
+        map.on("click", (e) => {
+      if (pickModeRef.current && onPickLocationRef.current) {
+        onPickLocationRef.current(e.latlng.lat, e.latlng.lng);
+      }
+    });mapRef.current = map;
     return () => {
       map.remove();
       mapRef.current = null;
@@ -288,7 +292,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
   return (
     <div
       ref={mapElRef}
-     style={{ width: "100%", height: "100%" }}
+    style={{ width: "100%", height: "100%", cursor: pickMode ? "crosshair" : "" }}
     />
   );
 }
