@@ -1264,7 +1264,7 @@ if (p) {
   const myConvoyMemberIds = myConvoy ? myConvoy.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
 
     return (
-    <div className="relative overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif", height: "100vh" }}>
+   <div className="relative overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif", position: "fixed", inset: 0 }}>
       <style>{FONTS}</style>
 
       {/* Carte marine plein écran, en fond */}
