@@ -1638,7 +1638,7 @@ if (p) {
       </div>
 
       {showAlertForm && (
-        <div className="fixed inset-0 flex items-end justify-center z-50" style={{ background: "rgba(0,0,0,0.6)" }}>
+        <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }}>
           <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>SIGNALER DES ORQUES</h3>
