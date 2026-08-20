@@ -1300,8 +1300,10 @@ const startPicking = (target) => {
           myConvoyMemberIds={myConvoyMemberIds}
           now={now}
           onSelectBoat={setSelectedBoat}
-          showShipyards={showShipyards}
-        />
+                showShipyards={showShipyards}
+                pickMode={!!pickTarget}
+                onPickLocation={handlePickLocation}
+              />
       </div>
 
       {/* Header flottant */}
