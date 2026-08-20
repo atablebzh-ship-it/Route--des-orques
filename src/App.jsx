@@ -1738,14 +1738,20 @@ const startPicking = (target) => {
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
               </Field>
               <div className="flex items-center justify-between">
-                <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                  RDV : {(cvRdvLat ?? pos?.lat)?.toFixed(4)}, {(cvRdvLon ?? pos?.lon)?.toFixed(4)}
-                </p>
-                <button onClick={() => triggerImport("convoy-rdv")}
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
-                  <Download size={12} /> Importer GPX
-                </button>
-              </div>
+  <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
+    RDV : {(cvRdvLat ?? pos?.lat)?.toFixed(4)}, {(cvRdvLon ?? pos?.lon)?.toFixed(4)}
+  </p>
+  <div className="flex gap-2">
+    <button onClick={() => startPicking("rdv")}
+      className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+      <LocateFixed size={12} /> Sur la carte
+    </button>
+    <button onClick={() => triggerImport("convoy-rdv")}
+      className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
+      <Download size={12} /> Importer GPX
+    </button>
+  </div>
+</div>
               <Field label="Date et heure de départ">
                 <input type="datetime-local" value={cvDeparture} onChange={(e) => setCvDeparture(e.target.value)}
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
