@@ -28,6 +28,8 @@ const COLORS = {
 
 const STALE_MS = 15 * 60 * 1000;
 const POLL_MS = 7000;
+const TRAIL_MAX_POINTS = 40; // nombre de points conservés par bateau pour la trace
+const TRAIL_MAX_AGE_MS = 3 * 3600 * 1000; // profondeur de la trace : 3 h
 const MAX_CHAT = 150;
 const MAX_ALERTS = 300; // couvre les signalements récents + l'historique de la saison
 const MAX_CONVOYS = 40;
@@ -196,7 +198,7 @@ const inputStyle = {
 };
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, pickMode, onPickLocation }) {
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, pickMode, onPickLocation, trails, showTrails, myBoatId }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
@@ -257,21 +259,47 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
     alertsWithDist.forEach((a) => {
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
-      window.L.circleMarker([a.lat, a.lon], {
-        radius: isRecent ? 10 : 6,
-        color: isRecent ? COLORS.orange : COLORS.muted,
-        fillColor: isRecent ? COLORS.orange : COLORS.muted,
-        fillOpacity: isRecent ? 0.35 : 0.25,
-        weight: isRecent ? 2 : 1,
-      })
-        .bindPopup(`${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author} · ${fmtDateTime(new Date(a.createdAt).toISOString())}`)
+      const color = a.incident ? COLORS.orange : COLORS.cyan;
+      const size = isRecent ? 28 : 20;
+      const orcaIcon = window.L.divIcon({
+        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 4 : 2}px ${color}40;opacity:${isRecent ? 1 : 0.55};font-size:${isRecent ? 14 : 11}px;">🐋</div>`,
+        className: "",
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+      window.L.marker([a.lat, a.lon], { icon: orcaIcon })
+        .bindPopup(
+          `${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author} · ${fmtDateTime(new Date(a.createdAt).toISOString())}${a.notes ? `<br/>${a.notes}` : ""}`
+        )
         .addTo(layer);
     });
 
-    if (myConvoy && myConvoy.destLat != null && myConvoy.destLon != null) {
-      window.L.marker([myConvoy.destLat, myConvoy.destLon])
-        .bindPopup(`Destination · ${myConvoy.name}`)
-        .addTo(layer);
+    if (myConvoy) {
+      const hasRdv = myConvoy.rdvLat != null && myConvoy.rdvLon != null;
+      const hasDest = myConvoy.destLat != null && myConvoy.destLon != null;
+
+      if (hasRdv) {
+        window.L.circleMarker([myConvoy.rdvLat, myConvoy.rdvLon], {
+          radius: 8, color: COLORS.green, fillColor: COLORS.green, fillOpacity: 0.9, weight: 2,
+        })
+          .bindPopup(`RDV · ${myConvoy.name}${myConvoy.rdvLabel ? ` · ${myConvoy.rdvLabel}` : ""}`)
+          .addTo(layer);
+      }
+
+      if (hasDest) {
+        window.L.marker([myConvoy.destLat, myConvoy.destLon])
+          .bindPopup(`Destination · ${myConvoy.name}${myConvoy.destLabel ? ` · ${myConvoy.destLabel}` : ""}`)
+          .addTo(layer);
+      }
+
+      if (hasRdv && hasDest) {
+        window.L.polyline(
+          [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]],
+          { color: COLORS.green, weight: 2, opacity: 0.8, dashArray: "6 8" }
+        )
+          .bindPopup(`Route du convoi · ${myConvoy.name}`)
+          .addTo(layer);
+      }
     }
 
     if (showShipyards) {
@@ -287,7 +315,39 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
           .addTo(layer);
       });
     }
-  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards]);
+
+    // --- Trace : simple trait de sillage par bateau (moi + les autres), comme sur un traceur de route ---
+    if (showTrails && trails) {
+      const othersById = {};
+      others.forEach((b) => { othersById[b.id] = b; });
+
+      Object.entries(trails).forEach(([boatId, points]) => {
+        if (!points || points.length < 2) return;
+        const isMe = boatId === myBoatId;
+        const otherInfo = othersById[boatId];
+        const inConvoy = myConvoyMemberIds.includes(boatId);
+        const stale = otherInfo ? otherInfo.stale : false;
+        const color = isMe ? COLORS.orange : inConvoy ? COLORS.green : COLORS.cyan;
+
+        const first = points[0];
+        const last = points[points.length - 1];
+        const dtH = (last.t - first.t) / 3600000;
+        const totalKm = distanceKm(first.lat, first.lon, last.lat, last.lon);
+        const speedKn = dtH > 0 ? totalKm / 1.852 / dtH : null;
+        const brg = bearingDeg(first.lat, first.lon, last.lat, last.lon);
+
+        window.L.polyline(points.map((p) => [p.lat, p.lon]), {
+          color,
+          weight: 2,
+          opacity: stale ? 0.3 : 0.7,
+        })
+          .bindPopup(
+            `${fmtDateTime(new Date(last.t).toISOString())}<br/>${last.lat.toFixed(4)}, ${last.lon.toFixed(4)}${speedKn != null ? `<br/>${speedKn.toFixed(1)} nds · cap ${Math.round(brg)}°` : ""}`
+          )
+          .addTo(layer);
+      });
+    }
+  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, trails, showTrails, myBoatId]);
 
   return (
     <div
@@ -463,9 +523,12 @@ export default function RouteDesOrques() {
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
   const [showShipyards, setShowShipyards] = useState(true);
+  const [showTrails, setShowTrails] = useState(true);
+  const [trails, setTrails] = useState({});
   const [showConvoyForm, setShowConvoyForm] = useState(false);
   const [alertCount, setAlertCount] = useState("");
   const [alertNotes, setAlertNotes] = useState("");
+  const [alertIncident, setAlertIncident] = useState(false);
   const [alertLat, setAlertLat] = useState(null);
   const [alertLon, setAlertLon] = useState(null);
   const [alertLocating, setAlertLocating] = useState(false);
@@ -649,7 +712,7 @@ if (p) {
       if (alertsRes.data) {
         setAlerts(alertsRes.data.map((a) => ({
           id: a.id, authorId: a.author_id, author: a.author, boatName: a.boat_name,
-          lat: a.lat, lon: a.lon, count: a.count, notes: a.notes, createdAt: new Date(a.created_at).getTime(),
+          lat: a.lat, lon: a.lon, count: a.count, notes: a.notes, incident: !!a.incident, createdAt: new Date(a.created_at).getTime(),
         })));
       }
 
@@ -687,6 +750,26 @@ if (p) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [chat, tab]);
+
+  // --- Trace : on ajoute un point par bateau (moi + les autres) à chaque nouvelle position connue ---
+  useEffect(() => {
+    const nowT = Date.now();
+    setTrails((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.values(boats).forEach((b) => {
+        if (b.lat == null || b.lon == null) return;
+        const list = next[b.id] ? [...next[b.id]] : [];
+        const last = list[list.length - 1];
+        if (!last || last.lat !== b.lat || last.lon !== b.lon) {
+          list.push({ lat: b.lat, lon: b.lon, t: b.updatedAt || nowT });
+          changed = true;
+        }
+        next[b.id] = list.filter((p) => nowT - p.t < TRAIL_MAX_AGE_MS).slice(-TRAIL_MAX_POINTS);
+      });
+      return changed ? next : prev;
+    });
+  }, [boats]);
 
   const publishMe = useCallback(
     async (overrides = {}) => {
@@ -898,6 +981,7 @@ if (p) {
     setAlertLat(pos?.lat ?? null);
     setAlertLon(pos?.lon ?? null);
     setAlertCount("1");
+    setAlertIncident(false);
     setShowAlertForm(true);
   };
 
@@ -945,18 +1029,19 @@ if (p) {
     try {
       const { data, error } = await supabase
         .from("alerts")
-        .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim() })
+        .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim(), incident: alertIncident })
         .select()
         .single();
       if (!error && data) {
         const entry = {
           id: data.id, authorId: data.author_id, author: data.author, boatName: data.boat_name,
-          lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, createdAt: new Date(data.created_at).getTime(),
+          lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, incident: !!data.incident, createdAt: new Date(data.created_at).getTime(),
         };
         setAlerts((prev) => [entry, ...prev].slice(0, MAX_ALERTS));
       }
       setAlertCount("");
       setAlertNotes("");
+      setAlertIncident(false);
       setAlertLat(null);
       setAlertLon(null);
       setShowAlertForm(false);
@@ -1303,6 +1388,9 @@ const startPicking = (target) => {
                 showShipyards={showShipyards}
                 pickMode={!!pickTarget}
                 onPickLocation={handlePickLocation}
+                trails={trails}
+                showTrails={showTrails}
+                myBoatId={profile.id}
               />
       </div>
 
@@ -1465,7 +1553,11 @@ const startPicking = (target) => {
                               <Panel key={a.id} className="p-3">
                                 <div className="flex items-start justify-between">
                                   <div className="flex items-center gap-2">
-                                    <AlertTriangle size={16} style={{ color: alertsView === "recentes" ? COLORS.orange : COLORS.muted }} />
+                                    {a.incident ? (
+                                      <AlertTriangle size={16} style={{ color: COLORS.orange }} />
+                                    ) : (
+                                      <Waves size={16} style={{ color: COLORS.cyan }} />
+                                    )}
                                     <span className="text-sm font-medium" style={{ color: COLORS.text }}>{a.count} orque{a.count > 1 ? "s" : ""}</span>
                                   </div>
                                   <span className="text-xs" style={{ color: COLORS.muted }}>
@@ -1577,6 +1669,25 @@ const startPicking = (target) => {
                         }}>
                         {gpsTracking && <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />}
                         {gpsTracking ? "Actif" : "Activer"}
+                      </button>
+                    </div>
+                  </Panel>
+
+                  <Panel className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm" style={{ color: COLORS.text }}>Trace sur la carte</p>
+                        <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                          Affiche le trajet récent de chaque bateau (moi et les autres) — les points sont cliquables (heure, position, vitesse/cap)
+                        </p>
+                      </div>
+                      <button onClick={() => setShowTrails((v) => !v)} className="px-3 py-1.5 rounded text-xs flex items-center gap-1 shrink-0"
+                        style={{
+                          background: showTrails ? COLORS.cyanDim : "transparent",
+                          color: showTrails ? COLORS.cyan : COLORS.muted,
+                          border: `1px solid ${showTrails ? COLORS.cyanDim : COLORS.border}`,
+                        }}>
+                        {showTrails ? "Visible" : "Masquée"}
                       </button>
                     </div>
                   </Panel>
@@ -1695,6 +1806,29 @@ const startPicking = (target) => {
                     {n}
                   </button>
                 ))}
+              </div>
+            </Field>
+            <div className="h-3" />
+            <Field label="Type d'observation">
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setAlertIncident(false)}
+                  className="flex-1 py-2 rounded text-sm font-medium"
+                  style={{
+                    background: !alertIncident ? COLORS.cyanDim : "transparent",
+                    color: !alertIncident ? COLORS.cyan : COLORS.muted,
+                    border: `1px solid ${!alertIncident ? COLORS.cyanDim : COLORS.border}`,
+                  }}>
+                  Sans incident
+                </button>
+                <button type="button" onClick={() => setAlertIncident(true)}
+                  className="flex-1 py-2 rounded text-sm font-medium"
+                  style={{
+                    background: alertIncident ? COLORS.orangeDim : "transparent",
+                    color: alertIncident ? COLORS.orange : COLORS.muted,
+                    border: `1px solid ${alertIncident ? COLORS.orangeDim : COLORS.border}`,
+                  }}>
+                  Avec incident
+                </button>
               </div>
             </Field>
             <div className="h-3" />
