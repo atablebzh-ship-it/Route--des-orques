@@ -719,6 +719,12 @@ export default function RouteDesOrques() {
   const [loginPassword, setLoginPassword] = useState("");
   const [pwSignupMode, setPwSignupMode] = useState(false);
   const [pwInfo, setPwInfo] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [newPassword1, setNewPassword1] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
+  const [recoveryError, setRecoveryError] = useState("");
+  const [recoveryDone, setRecoveryDone] = useState(false);
   const [lang, setLang] = useState("fr");
   const t = TRANSLATIONS[lang];
 
@@ -788,9 +794,36 @@ export default function RouteDesOrques() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
+      // Supabase établit une session temporaire quand on clique sur le lien "mot de passe
+      // oublié" reçu par e-mail — on bloque alors l'app sur l'écran "nouveau mot de passe".
+      if (_event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  const sendPasswordReset = async () => {
+    setAuthError("");
+    setResetSent(false);
+    if (!loginEmail.trim()) { setAuthError("Indique ton adresse e-mail ci-dessus d'abord."); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(loginEmail.trim(), {
+      redirectTo: window.location.origin,
+    });
+    if (error) setAuthError(error.message);
+    else setResetSent(true);
+  };
+
+  const updatePasswordAfterRecovery = async () => {
+    setRecoveryError("");
+    if (!newPassword1 || newPassword1.length < 6) { setRecoveryError("Le mot de passe doit faire au moins 6 caractères."); return; }
+    if (newPassword1 !== newPassword2) { setRecoveryError("Les deux mots de passe ne correspondent pas."); return; }
+    const { error } = await supabase.auth.updateUser({ password: newPassword1 });
+    if (error) setRecoveryError(error.message);
+    else {
+      setRecoveryDone(true);
+      setNewPassword1("");
+      setNewPassword2("");
+    }
+  };
 
   const sendMagicLink = async () => {
     setAuthError("");
@@ -1475,6 +1508,54 @@ const startPicking = (target) => {
     );
   }
 
+  if (passwordRecovery) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
+        <style>{FONTS}</style>
+        <div className="w-full max-w-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <Compass size={30} style={{ color: COLORS.orange }} />
+            <h1 className="text-2xl font-semibold tracking-wide" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
+              LA ROUTE DES ORQUES
+            </h1>
+          </div>
+          <Panel className="p-5 space-y-4">
+            {recoveryDone ? (
+              <div className="text-center py-3">
+                <Check size={28} style={{ color: COLORS.green, marginBottom: 10 }} className="mx-auto" />
+                <p className="text-sm mb-3" style={{ color: COLORS.text }}>Mot de passe mis à jour.</p>
+                <button onClick={() => setPasswordRecovery(false)} className="w-full py-2.5 rounded font-medium text-sm"
+                  style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                  Continuer
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm mb-1" style={{ color: COLORS.text }}>Choisis un nouveau mot de passe.</p>
+                <Field label="Nouveau mot de passe">
+                  <input value={newPassword1} onChange={(e) => setNewPassword1(e.target.value)}
+                    placeholder="••••••••" type="password"
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                </Field>
+                <Field label="Confirme le mot de passe">
+                  <input value={newPassword2} onChange={(e) => setNewPassword2(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && updatePasswordAfterRecovery()}
+                    placeholder="••••••••" type="password"
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                </Field>
+                {recoveryError && <p className="text-xs" style={{ color: COLORS.orange }}>{recoveryError}</p>}
+                <button onClick={updatePasswordAfterRecovery} className="w-full py-2.5 rounded font-medium text-sm"
+                  style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                  Valider le nouveau mot de passe
+                </button>
+              </>
+            )}
+          </Panel>
+        </div>
+      </div>
+    );
+  }
+
   if (!session) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
@@ -1557,13 +1638,21 @@ const startPicking = (target) => {
                     placeholder="••••••••" type="password"
                     className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
                 </Field>
+                {!pwSignupMode && (
+                  <div className="text-right">
+                    <button onClick={sendPasswordReset} className="text-xs" style={{ color: COLORS.cyan }}>
+                      Mot de passe oublié ?
+                    </button>
+                  </div>
+                )}
+                {resetSent && <p className="text-xs" style={{ color: COLORS.green }}>E-mail de réinitialisation envoyé — vérifie ta boîte mail et clique sur le lien reçu.</p>}
                 {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
                 {pwInfo && <p className="text-xs" style={{ color: COLORS.green }}>{pwInfo}</p>}
                 <button onClick={pwSignupMode ? signUpPassword : signInPassword} className="w-full py-2.5 rounded font-medium text-sm"
                   style={{ background: COLORS.orange, color: "#1A0E08" }}>
                   {pwSignupMode ? "Créer le compte" : "Se connecter"}
                 </button>
-                <button onClick={() => { setPwSignupMode(!pwSignupMode); setAuthError(""); setPwInfo(""); }} className="text-xs mt-1 block mx-auto" style={{ color: COLORS.cyan }}>
+                <button onClick={() => { setPwSignupMode(!pwSignupMode); setAuthError(""); setPwInfo(""); setResetSent(false); }} className="text-xs mt-1 block mx-auto" style={{ color: COLORS.cyan }}>
                   {pwSignupMode ? "J'ai déjà un compte" : "Pas encore de compte ? Créer un compte"}
                 </button>
               </>
