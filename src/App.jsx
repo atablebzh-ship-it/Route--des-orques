@@ -2308,7 +2308,9 @@ const startPicking = (target) => {
           visible en fond, ce panneau vient juste se poser par-dessus. Un bouton fermer permet
           d'y revenir directement sans repasser par un onglet "Carte" dédié. */}
       {tab !== "carte" && (
-        <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 92 }}>
+        // bottom relevé (92 -> 138) : la barre du bas est bien plus haute depuis que ses icônes
+        // ont grossi (~3x), l'ancienne valeur faisait coller/chevaucher le panneau avec elle.
+        <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 138 }}>
           <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "62vh", background: "rgba(15,31,56,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
             <div className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
               <span className="text-sm font-semibold tracking-wide" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
@@ -2792,9 +2794,20 @@ const startPicking = (target) => {
             </span>
           </IconBtn>
           <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={51} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
-          <IconBtn onClick={() => setShowShipyards((v) => !v)} active={showShipyards} label="Chantiers"><span style={{ fontSize: 44, lineHeight: 1, display: "block" }}>🛠️</span></IconBtn>
-          <IconBtn onClick={() => setShowRescueStations((v) => !v)} active={showRescueStations} label="Secours"><span style={{ fontSize: 44, lineHeight: 1, display: "block" }}>🛟</span></IconBtn>
-          <IconBtn onClick={() => setShowFishFarms((v) => !v)} active={showFishFarms} label="Élevage"><FishNetIcon size={44} color={COLORS.cyan} /></IconBtn>
+          {/* Ces 3 boutons reprennent exactement le motif de leur marqueur sur la carte (même
+              couleur de bulle, même icône) pour qu'on associe tout de suite le bouton au
+              marqueur qu'il affiche/masque. */}
+          <IconBtn onClick={() => setShowShipyards((v) => !v)} active={showShipyards} label="Chantiers">
+            <span style={{ width: 44, height: 44, borderRadius: "50%", background: COLORS.green, border: "3px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, lineHeight: 1 }}>🛠️</span>
+          </IconBtn>
+          <IconBtn onClick={() => setShowRescueStations((v) => !v)} active={showRescueStations} label="Secours">
+            <span style={{ width: 44, height: 44, borderRadius: "50%", background: COLORS.orange, border: "3px solid #4A2409", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, lineHeight: 1 }}>🛟</span>
+          </IconBtn>
+          <IconBtn onClick={() => setShowFishFarms((v) => !v)} active={showFishFarms} label="Élevage">
+            <span style={{ width: 44, height: 44, borderRadius: "50%", background: COLORS.cyan, border: "3px solid #0A2E33", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <FishNetIcon size={24} color="#000000" />
+            </span>
+          </IconBtn>
         </div>
       </div>
 
