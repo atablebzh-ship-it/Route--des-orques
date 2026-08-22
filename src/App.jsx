@@ -245,6 +245,39 @@ const RESCUE_CONTACT = {
   ISN: { vhf: "Canal 16", phone: "112" },
 };
 
+// Zones d'élevage de poissons (aquaculture marine) repérées sur la route Brest → Gibraltar.
+// Liste volontairement limitée à des sites nommés et vérifiables via presse spécialisée/officielle
+// (pas le cadastre aquacole complet — les portails SIG officiels ci-dessous en donnent la vue exhaustive
+// et à jour). Positions approximatives, à confirmer avant usage opérationnel.
+const FISH_FARMS = [
+  {
+    name: "Ferme Marine du Douhet (Poissons du Soleil)",
+    address: "Port du Douhet, La Brée-les-Bains, Île d'Oléron, France",
+    species: "Daurade, bar, maigre (écloserie/prégrossissement)",
+    lat: 46.019, lon: -1.358,
+  },
+  {
+    name: "Ferme pilote d'engraissement de thon rouge",
+    address: "~5 mn au large de Getaria, mer Cantabrique, Espagne",
+    species: "Thon rouge (projet pilote Balfegó / AZTI, 2025)",
+    lat: 43.39, lon: -2.199,
+  },
+  {
+    name: "CORALIS — ferme offshore Mariculture Systems",
+    address: "~12 km au large de Vila Real de Santo António, Algarve, Portugal",
+    species: "Bar, daurade (plateforme offshore, mise en service prévue 2028)",
+    lat: 37.09, lon: -7.415,
+  },
+];
+
+// Portails cartographiques officiels des zones d'aquaculture marine par pays — pour la vue
+// exhaustive et à jour (cadastre complet des concessions), au-delà des quelques sites listés ci-dessus.
+const AQUACULTURE_OFFICIAL_SOURCES = [
+  { label: "GéoLittoral — Portail cartographique Aquaculture (France)", url: "https://www.geolittoral.developpement-durable.gouv.fr/portail-aquaculture-a1286.html" },
+  { label: "DGRM — Geoportal de Aquicultura (Portugal)", url: "https://www.dgrm.pt/espa" },
+  { label: "MAPA — Acuicultura marina (Espagne)", url: "https://www.mapa.gob.es/es/pesca/temas/acuicultura/" },
+];
+
 // --- Notifications push : clé publique VAPID (la clé privée reste côté serveur uniquement) ---
 const VAPID_PUBLIC_KEY = "BMIS8tdZkU4-Ds_en30kFg0TsZWuxFnzBFguaStsE9DGI7FhxH2IIOdzvJyph2c4KGT_ZTMFkiNnJ7GKp69oeYs";
 
@@ -415,7 +448,7 @@ const inputStyle = {
 const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23FF6B35" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23FF6B35" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23FF6B35" stroke-width="5"/></svg>') 22 22, crosshair`;
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, pickMode, onPickLocation, trails, showTrails, myBoatId, focusTarget, mapStyle }) {
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, focusTarget, mapStyle }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
@@ -614,6 +647,21 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       });
     }
 
+    if (showFishFarms) {
+      const fishFarmIcon = window.L.divIcon({
+        html: `<div style="background:${COLORS.cyan};width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A2E33;font-size:18px;">🐟</div>`,
+        className: "",
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+      });
+      FISH_FARMS.forEach((f) => {
+        const farmTooltip = `<div class="orca-tooltip-title">🐟 ${f.name}</div><div class="orca-tooltip-meta">${f.address}</div><div class="orca-tooltip-meta">${f.species}</div><div class="orca-tooltip-notes">Position approximative — voir sources officielles pour le cadastre complet</div>`;
+        window.L.marker([f.lat, f.lon], { icon: fishFarmIcon })
+          .bindTooltip(farmTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .addTo(layer);
+      });
+    }
+
     // --- Trace : simple trait de sillage par bateau (moi + les autres), comme sur un traceur de route ---
     if (showTrails && trails) {
       const othersById = {};
@@ -644,7 +692,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
           .addTo(layer);
       });
     }
-  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, trails, showTrails, myBoatId]);
+  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, trails, showTrails, myBoatId]);
 
   // Centre/zoome la carte et ouvre la bulle du marqueur correspondant quand on clique
   // sur une alerte dans la liste (géolocalisation visuelle demandée depuis l'onglet Alertes).
@@ -841,6 +889,7 @@ export default function RouteDesOrques() {
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
   const [showShipyards, setShowShipyards] = useState(true);
+  const [showFishFarms, setShowFishFarms] = useState(true);
   const [showRescueStations, setShowRescueStations] = useState(true);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
@@ -1959,6 +2008,7 @@ const startPicking = (target) => {
           onSelectBoat={setSelectedBoat}
                 showShipyards={showShipyards}
                 showRescueStations={showRescueStations}
+                showFishFarms={showFishFarms}
                 pickMode={!!pickTarget}
                 onPickLocation={handlePickLocation}
                 trails={trails}
@@ -2232,6 +2282,21 @@ const startPicking = (target) => {
                                 </div>
                               </div>
                             ))}
+                          </Panel>
+                        )}
+
+                        {alertsView === "historique" && (
+                          <Panel className="p-4 mt-3">
+                            <p className="text-xs uppercase tracking-wider mb-1.5" style={{ color: COLORS.muted }}>🐟 Zones d'élevage de poissons</p>
+                            <p className="text-sm mb-2" style={{ color: COLORS.text }}>Quelques sites repérés sur la carte (non exhaustif). Cadastre complet et à jour :</p>
+                            <div className="space-y-1.5">
+                              {AQUACULTURE_OFFICIAL_SOURCES.map((s) => (
+                                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                                  className="block text-sm underline" style={{ color: COLORS.cyan }}>
+                                  {s.label}
+                                </a>
+                              ))}
+                            </div>
                           </Panel>
                         )}
                       </>
