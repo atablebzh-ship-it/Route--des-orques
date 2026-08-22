@@ -12,36 +12,38 @@ const FONTS = `
 
 .leaflet-tooltip.orca-tooltip {
   background: #0F1F38;
-  color: #E8EDF2;
-  border: 1px solid #1E3A5F;
+  color: #FFFFFF;
+  border: 2px solid #1E3A5F;
   font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.5;
-  padding: 8px 12px;
-  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+  padding: 12px 16px;
+  border-radius: 10px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.45);
   text-align: center;
+  max-width: 280px;
+  white-space: normal;
 }
 .leaflet-tooltip.orca-tooltip::before {
   display: none;
 }
 .orca-tooltip-title {
   font-family: 'Oswald', sans-serif;
-  font-size: 13px;
+  font-size: 18px;
   letter-spacing: 0.02em;
-  color: #E8EDF2;
+  color: #FFFFFF;
 }
 .orca-tooltip-meta {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: #6C87A6;
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFFFFF;
 }
 .orca-tooltip-notes {
   font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  color: #E8EDF2;
-  opacity: 0.9;
+  font-size: 14px;
+  color: #FFFFFF;
 }
 `;
 
@@ -713,6 +715,10 @@ export default function RouteDesOrques() {
   const [linkSent, setLinkSent] = useState(false);
   const [authError, setAuthError] = useState("");
   const [otpCode, setOtpCode] = useState("");
+  const [loginMode, setLoginMode] = useState("magic"); // "magic" | "password"
+  const [loginPassword, setLoginPassword] = useState("");
+  const [pwSignupMode, setPwSignupMode] = useState(false);
+  const [pwInfo, setPwInfo] = useState("");
   const [lang, setLang] = useState("fr");
   const t = TRANSLATIONS[lang];
 
@@ -806,6 +812,30 @@ export default function RouteDesOrques() {
       type: "email",
     });
     if (error) setAuthError(error.message);
+  };
+
+  const signInPassword = async () => {
+    setAuthError("");
+    setPwInfo("");
+    if (!loginEmail.trim() || !loginPassword) return;
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginEmail.trim(),
+      password: loginPassword,
+    });
+    if (error) setAuthError(error.message);
+  };
+
+  const signUpPassword = async () => {
+    setAuthError("");
+    setPwInfo("");
+    if (!loginEmail.trim() || !loginPassword) return;
+    const { data, error } = await supabase.auth.signUp({
+      email: loginEmail.trim(),
+      password: loginPassword,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (error) setAuthError(error.message);
+    else if (!data.session) setPwInfo("Compte créé — vérifie tes e-mails pour confirmer ton adresse avant de te connecter.");
   };
 
   const handleSignOut = async () => {
@@ -1463,39 +1493,78 @@ const startPicking = (target) => {
             {t.loginTagline}
           </p>
           <LangSwitcher lang={lang} setLang={setLang} />
+
+          <div className="flex gap-2 mb-3 mt-3">
+            {[["magic", "Lien magique"], ["password", "Mot de passe"]].map(([val, label]) => (
+              <button key={val} onClick={() => { setLoginMode(val); setAuthError(""); setPwInfo(""); }}
+                className="flex-1 text-xs py-1.5 rounded"
+                style={{
+                  background: loginMode === val ? COLORS.orangeDim : "transparent",
+                  color: loginMode === val ? COLORS.orange : COLORS.muted,
+                  border: `1px solid ${loginMode === val ? COLORS.orangeDim : COLORS.border}`,
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           <Panel className="p-5 space-y-4">
-            {linkSent ? (
-          <div className="text-center py-3">
-                <Check size={28} style={{ color: COLORS.green, marginBottom: 10 }} className="mx-auto" />
-                <p className="text-sm" style={{ color: COLORS.text }}>
-                  {t.codeSent(loginEmail)}
-                </p>
-                <Field label={t.codeLabel}>
-                  <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && verifyCode()}
-                    placeholder="12345678" type="text" maxLength={8}
-                    className="w-full px-3 py-2 rounded outline-none text-sm text-center" style={inputStyle} />
-                </Field>
-                {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
-                <button onClick={verifyCode} className="w-full py-2.5 rounded font-medium text-sm mt-2"
-                  style={{ background: COLORS.orange, color: "#1A0E08" }}>
-                  {t.validateCode}
-                </button>
-                <button onClick={() => setLinkSent(false)} className="text-xs mt-3" style={{ color: COLORS.cyan }}>
-                  {t.useOtherEmail}
-                </button>
-              </div>
-              
+            {loginMode === "magic" ? (
+              linkSent ? (
+                <div className="text-center py-3">
+                  <Check size={28} style={{ color: COLORS.green, marginBottom: 10 }} className="mx-auto" />
+                  <p className="text-sm" style={{ color: COLORS.text }}>
+                    {t.codeSent(loginEmail)}
+                  </p>
+                  <Field label={t.codeLabel}>
+                    <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && verifyCode()}
+                      placeholder="12345678" type="text" maxLength={8}
+                      className="w-full px-3 py-2 rounded outline-none text-sm text-center" style={inputStyle} />
+                  </Field>
+                  {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
+                  <button onClick={verifyCode} className="w-full py-2.5 rounded font-medium text-sm mt-2"
+                    style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                    {t.validateCode}
+                  </button>
+                  <button onClick={() => setLinkSent(false)} className="text-xs mt-3" style={{ color: COLORS.cyan }}>
+                    {t.useOtherEmail}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Field label={t.emailLabel}>
+                    <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMagicLink()}
+                      placeholder="toi@exemple.com" type="email"
+                      className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                  </Field>
+                  {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
+                  <button onClick={sendMagicLink} className="w-full py-2.5 rounded font-medium text-sm"
+                    style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                    {t.receiveLink}
+                  </button>
+                </>
+              )
             ) : (
               <>
                 <Field label={t.emailLabel}>
-                  <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMagicLink()}
+                  <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
                     placeholder="toi@exemple.com" type="email"
                     className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
                 </Field>
+                <Field label="Mot de passe">
+                  <input value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (pwSignupMode ? signUpPassword() : signInPassword())}
+                    placeholder="••••••••" type="password"
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                </Field>
                 {authError && <p className="text-xs" style={{ color: COLORS.orange }}>{authError}</p>}
-                <button onClick={sendMagicLink} className="w-full py-2.5 rounded font-medium text-sm"
+                {pwInfo && <p className="text-xs" style={{ color: COLORS.green }}>{pwInfo}</p>}
+                <button onClick={pwSignupMode ? signUpPassword : signInPassword} className="w-full py-2.5 rounded font-medium text-sm"
                   style={{ background: COLORS.orange, color: "#1A0E08" }}>
-                  {t.receiveLink}
+                  {pwSignupMode ? "Créer le compte" : "Se connecter"}
+                </button>
+                <button onClick={() => { setPwSignupMode(!pwSignupMode); setAuthError(""); setPwInfo(""); }} className="text-xs mt-1 block mx-auto" style={{ color: COLORS.cyan }}>
+                  {pwSignupMode ? "J'ai déjà un compte" : "Pas encore de compte ? Créer un compte"}
                 </button>
               </>
             )}
