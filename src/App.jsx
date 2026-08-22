@@ -113,6 +113,7 @@ const POLL_MS = 7000;
 const TRAIL_MAX_POINTS = 40; // nombre de points conservés par bateau pour la trace
 const TRAIL_MAX_AGE_MS = 3 * 3600 * 1000; // profondeur de la trace : 3 h
 const MAX_CHAT = 150;
+const MAX_DM = 300; // messages privés conservés côté client, tous fils confondus
 const MAX_ALERTS = 300; // couvre les signalements récents + l'historique de la saison
 const MAX_CONVOYS = 40;
 const RECENT_ALERT_MS = 6 * 3600 * 1000;
@@ -1110,6 +1111,11 @@ export default function RouteDesOrques() {
   const [alertLon, setAlertLon] = useState(null);
   const [alertLocating, setAlertLocating] = useState(false);
   const [chatText, setChatText] = useState("");
+  // Messages privés 1-à-1 entre utilisateurs (pour s'organiser en dehors du canal général),
+  // avec notification push à chaque nouveau message. null = onglet "Général" du chat.
+  const [dms, setDms] = useState([]);
+  const [activeDmPeerId, setActiveDmPeerId] = useState(null);
+  const [dmText, setDmText] = useState("");
   const [selectedBoat, setSelectedBoat] = useState(null);
   const [expandedConvoy, setExpandedConvoy] = useState(null);
   const [geoError, setGeoError] = useState("");
@@ -1328,12 +1334,15 @@ if (p) {
 
   const fetchShared = useCallback(async () => {
     try {
-      const [boatsRes, alertsRes, chatRes, convoysRes, membersRes] = await Promise.all([
+      const [boatsRes, alertsRes, chatRes, convoysRes, membersRes, dmsRes] = await Promise.all([
         supabase.from("boats").select("*"),
         supabase.from("alerts").select("*").order("created_at", { ascending: false }).limit(MAX_ALERTS),
         supabase.from("chat_messages").select("*").order("created_at", { ascending: true }).limit(MAX_CHAT),
         supabase.from("convoys").select("*").order("created_at", { ascending: false }).limit(MAX_CONVOYS),
         supabase.from("convoy_members").select("*"),
+        // Pas de filtre explicite ici : la RLS sur direct_messages ne laisse chacun voir que
+        // les messages où il est expéditeur ou destinataire, donc select("*") est déjà privé.
+        supabase.from("direct_messages").select("*").order("created_at", { ascending: true }).limit(MAX_DM),
       ]);
 
       if (boatsRes.data) {
@@ -1348,6 +1357,7 @@ if (p) {
             notifySpecies: b.notify_species === false ? false : true,
             notifyConvoys: b.notify_convoys === false ? false : true,
             notifyConvoyActivity: b.notify_convoy_activity === false ? false : true,
+            notifyMessages: b.notify_messages === false ? false : true,
           };
         });
         setBoats(map);
@@ -1364,6 +1374,13 @@ if (p) {
       if (chatRes.data) {
         setChat(chatRes.data.map((m) => ({
           id: m.id, author: m.author, boatName: m.boat_name, text: m.text, createdAt: new Date(m.created_at).getTime(),
+        })));
+      }
+
+      if (dmsRes.data) {
+        setDms(dmsRes.data.map((m) => ({
+          id: m.id, fromId: m.from_id, toId: m.to_id, fromPseudo: m.from_pseudo, fromBoatName: m.from_boat_name,
+          text: m.text, createdAt: new Date(m.created_at).getTime(),
         })));
       }
 
@@ -1394,7 +1411,7 @@ if (p) {
     if (tab === "chat" && chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chat, tab]);
+  }, [chat, dms, activeDmPeerId, tab]);
 
   // --- Trace : on ajoute un point par bateau (moi + les autres) à chaque nouvelle position connue ---
   useEffect(() => {
@@ -1442,6 +1459,7 @@ if (p) {
               notifySpecies: prev[profile.id]?.notifySpecies ?? true,
               notifyConvoys: prev[profile.id]?.notifyConvoys ?? true,
               notifyConvoyActivity: prev[profile.id]?.notifyConvoyActivity ?? true,
+              notifyMessages: prev[profile.id]?.notifyMessages ?? true,
             },
           }));
         }
@@ -1467,6 +1485,7 @@ if (p) {
     notifySpecies: "notify_species",
     notifyConvoys: "notify_convoys",
     notifyConvoyActivity: "notify_convoy_activity",
+    notifyMessages: "notify_messages",
   };
   const updateNotifyPref = async (field, value) => {
     if (!profile) return;
@@ -1821,6 +1840,39 @@ if (p) {
       if (!error && data) {
         const entry = { id: data.id, author: data.author, boatName: data.boat_name, text: data.text, createdAt: new Date(data.created_at).getTime() };
         setChat((prev) => [...prev, entry].slice(-MAX_CHAT));
+      }
+    } catch (e) {}
+  };
+
+  // Ouvre (ou crée) le fil de messages privés avec un autre utilisateur — utilisé depuis les
+  // boutons "Contacter" (membres/organisateur d'un convoi) pour s'organiser en dehors du canal
+  // général, et bascule directement sur l'onglet Chat, sur ce fil.
+  const openDmWith = (boatId) => {
+    if (!boatId || boatId === profile.id) return;
+    setActiveDmPeerId(boatId);
+    setTab("chat");
+  };
+
+  const sendDirectMessage = async () => {
+    const text = dmText.trim();
+    if (!text || !profile || !activeDmPeerId) return;
+    setDmText("");
+    try {
+      const { data, error } = await supabase
+        .from("direct_messages")
+        .insert({ from_id: profile.id, to_id: activeDmPeerId, from_pseudo: profile.pseudo, from_boat_name: profile.boatName, text })
+        .select()
+        .single();
+      if (!error && data) {
+        const entry = {
+          id: data.id, fromId: data.from_id, toId: data.to_id, fromPseudo: data.from_pseudo, fromBoatName: data.from_boat_name,
+          text: data.text, createdAt: new Date(data.created_at).getTime(),
+        };
+        setDms((prev) => [...prev, entry].slice(-MAX_DM));
+        // Respecte la préférence du destinataire (onglet "Moi" → notifyMessages).
+        if (boats[activeDmPeerId]?.notifyMessages !== false) {
+          sendPush([activeDmPeerId], `💬 Message de ${profile.pseudo}`, text, "/");
+        }
       }
     } catch (e) {}
   };
@@ -2455,13 +2507,27 @@ const startPicking = (target) => {
                               {confirmed.map((m) => (
                                 <div key={m.boatId} className="flex items-center justify-between text-sm">
                                   <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
-                                  <Check size={14} style={{ color: COLORS.green }} />
+                                  <div className="flex items-center gap-2">
+                                    {m.boatId !== profile.id && (
+                                      <button onClick={() => openDmWith(m.boatId)} title={`Contacter ${m.pseudo}`}
+                                        className="flex items-center justify-center rounded-full shrink-0"
+                                        style={{ width: 26, height: 26, background: "rgba(140,122,230,0.15)", color: "#8C7AE6" }}>
+                                        <MessageCircle size={13} />
+                                      </button>
+                                    )}
+                                    <Check size={14} style={{ color: COLORS.green }} />
+                                  </div>
                                 </div>
                               ))}
                               {isOrganizer && pending.map((m) => (
                                 <div key={m.boatId} className="flex items-center justify-between text-sm">
                                   <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
-                                  <div className="flex gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => openDmWith(m.boatId)} title={`Contacter ${m.pseudo}`}
+                                      className="flex items-center justify-center rounded-full shrink-0"
+                                      style={{ width: 26, height: 26, background: "rgba(140,122,230,0.15)", color: "#8C7AE6" }}>
+                                      <MessageCircle size={13} />
+                                    </button>
                                     <button onClick={() => respondRequest(cv.id, m.boatId, true)}
                                       className="text-xs px-2 py-1 rounded" style={{ color: COLORS.green, border: `1px solid ${COLORS.greenDim}` }}>Accepter</button>
                                     <button onClick={() => respondRequest(cv.id, m.boatId, false)}
@@ -2469,6 +2535,13 @@ const startPicking = (target) => {
                                   </div>
                                 </div>
                               ))}
+                              {!isOrganizer && (
+                                <button onClick={() => openDmWith(cv.organizerId)}
+                                  className="w-full py-2 rounded text-sm mt-1 flex items-center justify-center gap-2"
+                                  style={{ color: "#8C7AE6", border: "1px solid rgba(140,122,230,0.4)" }}>
+                                  <MessageCircle size={14} /> Contacter {cv.organizerPseudo} (organisateur)
+                                </button>
+                              )}
                               {!me && (
                                 <button onClick={() => requestJoin(cv.id)}
                                   className="w-full py-2 rounded text-sm mt-1"
@@ -2619,21 +2692,71 @@ const startPicking = (target) => {
 
               {tab === "chat" && (
                 <div className="flex flex-col" style={{ minHeight: "30vh" }}>
-                  <div className="flex-1 space-y-2">
-                    {chat.length === 0 && (
-                      <p className="text-center text-sm mt-6" style={{ color: COLORS.muted }}>Canal général — coordonne-toi ici.</p>
-                    )}
-                    {chat.map((m) => (
-                      <div key={m.id} className={m.author === profile.pseudo ? "text-right" : "text-left"}>
-                        <div className="inline-block px-3 py-2 rounded-lg max-w-[80%] text-left"
-                          style={{ background: m.author === profile.pseudo ? COLORS.cyanDim : COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
-                          <p className="text-xs mb-0.5" style={{ color: COLORS.muted }}>{m.author} · {m.boatName}</p>
-                          <p className="text-sm" style={{ color: COLORS.text }}>{m.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={chatEndRef} />
+                  {/* Fils : canal général + un fil par message privé — s'organiser en dehors
+                      du canal général, entre deux utilisateurs, avec notif push dédiée. */}
+                  <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+                    <button onClick={() => setActiveDmPeerId(null)}
+                      className="shrink-0 text-xs px-3 py-1.5 rounded-full"
+                      style={{
+                        background: activeDmPeerId === null ? COLORS.cyanDim : "transparent",
+                        color: activeDmPeerId === null ? COLORS.cyan : COLORS.muted,
+                        border: `1px solid ${activeDmPeerId === null ? COLORS.cyanDim : COLORS.border}`,
+                      }}>
+                      Général
+                    </button>
+                    {Array.from(new Set(dms.map((m) => (m.fromId === profile.id ? m.toId : m.fromId))).add(activeDmPeerId).values())
+                      .filter((id) => id && id !== profile.id)
+                      .map((peerId) => (
+                        <button key={peerId} onClick={() => setActiveDmPeerId(peerId)}
+                          className="shrink-0 text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5"
+                          style={{
+                            background: activeDmPeerId === peerId ? "rgba(140,122,230,0.2)" : "transparent",
+                            color: activeDmPeerId === peerId ? "#8C7AE6" : COLORS.muted,
+                            border: `1px solid ${activeDmPeerId === peerId ? "#8C7AE6" : COLORS.border}`,
+                          }}>
+                          <MessageCircle size={11} /> {boats[peerId]?.pseudo || "Utilisateur"}
+                        </button>
+                      ))}
                   </div>
+
+                  {activeDmPeerId === null ? (
+                    <div className="flex-1 space-y-2">
+                      {chat.length === 0 && (
+                        <p className="text-center text-sm mt-6" style={{ color: COLORS.muted }}>Canal général — coordonne-toi ici.</p>
+                      )}
+                      {chat.map((m) => (
+                        <div key={m.id} className={m.author === profile.pseudo ? "text-right" : "text-left"}>
+                          <div className="inline-block px-3 py-2 rounded-lg max-w-[80%] text-left"
+                            style={{ background: m.author === profile.pseudo ? COLORS.cyanDim : COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
+                            <p className="text-xs mb-0.5" style={{ color: COLORS.muted }}>{m.author} · {m.boatName}</p>
+                            <p className="text-sm" style={{ color: COLORS.text }}>{m.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </div>
+                  ) : (
+                    <div className="flex-1 space-y-2">
+                      <p className="text-center text-xs mb-1" style={{ color: COLORS.muted }}>
+                        Message privé avec {boats[activeDmPeerId]?.pseudo || "cet utilisateur"} — visible uniquement par vous deux.
+                      </p>
+                      {dms.filter((m) => (m.fromId === profile.id && m.toId === activeDmPeerId) || (m.fromId === activeDmPeerId && m.toId === profile.id)).length === 0 && (
+                        <p className="text-center text-sm mt-4" style={{ color: COLORS.muted }}>Aucun message pour l'instant — dis bonjour !</p>
+                      )}
+                      {dms
+                        .filter((m) => (m.fromId === profile.id && m.toId === activeDmPeerId) || (m.fromId === activeDmPeerId && m.toId === profile.id))
+                        .map((m) => (
+                          <div key={m.id} className={m.fromId === profile.id ? "text-right" : "text-left"}>
+                            <div className="inline-block px-3 py-2 rounded-lg max-w-[80%] text-left"
+                              style={{ background: m.fromId === profile.id ? "rgba(140,122,230,0.25)" : COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
+                              <p className="text-xs mb-0.5" style={{ color: COLORS.muted }}>{m.fromPseudo} · {m.fromBoatName}</p>
+                              <p className="text-sm" style={{ color: COLORS.text }}>{m.text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      <div ref={chatEndRef} />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2694,6 +2817,12 @@ const startPicking = (target) => {
                       sub="Demandes pour rejoindre, demandes acceptées"
                       value={boats[profile.id]?.notifyConvoyActivity !== false}
                       onToggle={() => updateNotifyPref("notifyConvoyActivity", !(boats[profile.id]?.notifyConvoyActivity !== false))}
+                    />
+                    <ToggleRow
+                      label="Messages privés"
+                      sub="Quand un autre utilisateur t'envoie un message"
+                      value={boats[profile.id]?.notifyMessages !== false}
+                      onToggle={() => updateNotifyPref("notifyMessages", !(boats[profile.id]?.notifyMessages !== false))}
                     />
                   </Panel>
 
@@ -2833,11 +2962,20 @@ const startPicking = (target) => {
 
             </div>
 
-            {tab === "chat" && (
+            {tab === "chat" && activeDmPeerId === null && (
               <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: COLORS.border }}>
                 <input value={chatText} onChange={(e) => setChatText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                   placeholder="Écrire un message…" className="flex-1 px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
                 <button onClick={sendMessage} className="p-2.5 rounded" style={{ background: COLORS.orange, color: "#1A0E08" }}>
+                  <Send size={16} />
+                </button>
+              </div>
+            )}
+            {tab === "chat" && activeDmPeerId !== null && (
+              <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: COLORS.border }}>
+                <input value={dmText} onChange={(e) => setDmText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendDirectMessage()}
+                  placeholder={`Écrire à ${boats[activeDmPeerId]?.pseudo || ""}…`} className="flex-1 px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                <button onClick={sendDirectMessage} className="p-2.5 rounded" style={{ background: "#8C7AE6", color: "#1A0E2E" }}>
                   <Send size={16} />
                 </button>
               </div>
