@@ -157,8 +157,11 @@ const SEA_LANE = [
   { name: "Santander", lat: 43.58, lon: -3.95 },
   { name: "Cabo Peñas", lat: 43.72, lon: -6.05 },
   { name: "Cabo Ortegal", lat: 43.95, lon: -7.95 },
+  { name: "Ferrol (large)", lat: 43.62, lon: -8.36 },
   { name: "A Coruña", lat: 43.55, lon: -8.55 },
+  { name: "Camariñas / Costa da Morte", lat: 43.15, lon: -9.22 },
   { name: "Cabo Fisterra", lat: 42.85, lon: -9.45 },
+  { name: "Ría de Muros e Noia", lat: 42.72, lon: -9.2 },
   { name: "Vigo", lat: 42.05, lon: -9.05 },
   { name: "Porto", lat: 41.25, lon: -9.05 },
   { name: "Peniche", lat: 39.4, lon: -9.6 },
@@ -330,7 +333,10 @@ function computeSeaRoute(a, b) {
   const iB = nearestLaneIndex(b.lat, b.lon);
   const start = { lat: a.lat, lon: a.lon };
   const end = { lat: b.lat, lon: b.lon };
-  if (iA === iB) return [start, end];
+  // Les deux points se rattachent au même repère du couloir (ex : RDV et destination de part et
+  // d'autre d'une presqu'île/ria, comme à Ferrol) : on route quand même via ce point au large plutôt
+  // que de tracer une ligne droite qui peut couper à travers la terre.
+  if (iA === iB) return [start, SEA_LANE[iA], end];
   const step = iA < iB ? 1 : -1;
   const middle = [];
   for (let i = iA; i !== iB; i += step) middle.push(SEA_LANE[i]);
@@ -2824,6 +2830,11 @@ const startPicking = (target) => {
               {cvDestLat == null && (
                 <p className="text-xs" style={{ color: COLORS.orange }}>
                   Sans coordonnées, la destination n'apparaîtra pas sur la carte — utilisez "Sur la carte" ou "Importer GPX".
+                </p>
+              )}
+              {cvRdvLat != null && cvDestLat != null && (
+                <p className="text-xs" style={{ color: COLORS.muted }}>
+                  Le tracé affiché entre RDV et destination est indicatif (couloir maritime approximatif) — vérifie toujours ta route réelle avant de partir, notamment près des côtes découpées.
                 </p>
               )}
               <Field label="Heure d'arrivée estimée">
