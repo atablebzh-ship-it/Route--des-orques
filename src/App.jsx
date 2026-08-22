@@ -9,6 +9,21 @@ const FONTS = `
 .leaflet-top.leaflet-left {
   margin-top: 64px !important;
 }
+
+.leaflet-tooltip.orca-tooltip {
+  background: #0F1F38;
+  color: #E8EDF2;
+  border: 1px solid #1E3A5F;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+}
+.leaflet-tooltip.orca-tooltip::before {
+  display: none;
+}
 `;
 
 const COLORS = {
@@ -263,17 +278,17 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     alertsWithDist.forEach((a) => {
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
-      const size = isRecent ? 36 : 26;
+      const size = isRecent ? 44 : 32;
       const orcaIcon = window.L.divIcon({
-        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 6 : 3}px ${color}55;opacity:${isRecent ? 1 : 0.7};font-size:${isRecent ? 18 : 14}px;">🐋</div>`,
+        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 7 : 4}px ${color}55;opacity:${isRecent ? 1 : 0.75};font-size:${isRecent ? 22 : 17}px;">🐋</div>`,
         className: "",
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
+      const alertDesc = `${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author} · ${fmtDateTime(new Date(a.createdAt).toISOString())}${a.notes ? `<br/>${a.notes}` : ""}`;
       window.L.marker([a.lat, a.lon], { icon: orcaIcon })
-        .bindPopup(
-          `${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author} · ${fmtDateTime(new Date(a.createdAt).toISOString())}${a.notes ? `<br/>${a.notes}` : ""}`
-        )
+        .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+        .bindPopup(alertDesc)
         .addTo(layer);
     });
 
@@ -282,30 +297,41 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       const hasDest = myConvoy.destLat != null && myConvoy.destLon != null;
 
       if (hasRdv) {
+        const rdvDesc = `RDV · ${myConvoy.name}${myConvoy.rdvLabel ? ` · ${myConvoy.rdvLabel}` : ""}`;
         window.L.circleMarker([myConvoy.rdvLat, myConvoy.rdvLon], {
-          radius: 11, color: COLORS.green, fillColor: COLORS.green, fillOpacity: 0.9, weight: 3,
+          radius: 14, color: COLORS.green, fillColor: COLORS.green, fillOpacity: 0.9, weight: 3,
         })
-          .bindPopup(`RDV · ${myConvoy.name}${myConvoy.rdvLabel ? ` · ${myConvoy.rdvLabel}` : ""}`)
+          .bindTooltip(rdvDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .bindPopup(rdvDesc)
           .addTo(layer);
       }
 
       if (hasDest) {
+        const destDesc = `Destination · ${myConvoy.name}${myConvoy.destLabel ? ` · ${myConvoy.destLabel}` : ""}`;
         const destIcon = window.L.divIcon({
-          html: `<div style="background:${COLORS.orange};width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #1A0E08;font-size:16px;">🏁</div>`,
+          html: `<div style="background:${COLORS.orange};width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #1A0E08;font-size:20px;">🏁</div>`,
           className: "",
-          iconSize: [30, 30],
-          iconAnchor: [15, 15],
+          iconSize: [38, 38],
+          iconAnchor: [19, 19],
         });
         window.L.marker([myConvoy.destLat, myConvoy.destLon], { icon: destIcon })
-          .bindPopup(`Destination · ${myConvoy.name}${myConvoy.destLabel ? ` · ${myConvoy.destLabel}` : ""}`)
+          .bindTooltip(destDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .bindPopup(destDesc)
           .addTo(layer);
       }
 
       if (hasRdv && hasDest) {
+        // Suit les points de passage ajoutés à la main (pour longer la côte) quand ils existent,
+        // sinon retombe sur une ligne droite RDV → destination (purement indicative).
+        const routeLatLngs =
+          Array.isArray(myConvoy.routePoints) && myConvoy.routePoints.length >= 2
+            ? myConvoy.routePoints.map((p) => [p.lat, p.lon])
+            : [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]];
         window.L.polyline(
-          [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]],
+          routeLatLngs,
           { color: COLORS.green, weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" }
         )
+          .bindTooltip(`Route du convoi · ${myConvoy.name}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .bindPopup(`Route du convoi · ${myConvoy.name}`)
           .addTo(layer);
       }
@@ -313,14 +339,16 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
     if (showShipyards) {
       const wrenchIcon = window.L.divIcon({
-        html: `<div style="background:${COLORS.green};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1F14;font-size:15px;">🛠️</div>`,
+        html: `<div style="background:${COLORS.green};width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1F14;font-size:19px;">🛠️</div>`,
         className: "",
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
       });
       SHIPYARDS.forEach((s) => {
+        const yardDesc = `<b>${s.name}</b><br/>${s.address}${s.phone ? `<br/>${s.phone}` : ""}`;
         window.L.marker([s.lat, s.lon], { icon: wrenchIcon })
-          .bindPopup(`<b>${s.name}</b><br/>${s.address}${s.phone ? `<br/>${s.phone}` : ""}`)
+          .bindTooltip(`${s.name}<br/>${s.address}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .bindPopup(yardDesc)
           .addTo(layer);
       });
     }
@@ -560,7 +588,8 @@ export default function RouteDesOrques() {
   const [cvDest, setCvDest] = useState("");
   const [cvDestLat, setCvDestLat] = useState(null);
   const [cvDestLon, setCvDestLon] = useState(null);
-  const [cvEta, setCvEta] = useState("");const [pickTarget, setPickTarget] = useState(null); // "rdv" | "dest" | null
+  const [cvEta, setCvEta] = useState("");const [pickTarget, setPickTarget] = useState(null); // "rdv" | "dest" | "waypoint" | null
+  const [cvWaypoints, setCvWaypoints] = useState([]); // points intermédiaires pour longer la côte, dans l'ordre
 
   const [showImportPicker, setShowImportPicker] = useState(false);
   const [importedWaypoints, setImportedWaypoints] = useState([]);
@@ -740,6 +769,7 @@ if (p) {
           id: cv.id, name: cv.name, organizerId: cv.organizer_id, organizerPseudo: cv.organizer_pseudo, organizerBoat: cv.organizer_boat,
           rdvLabel: cv.rdv_label, rdvLat: cv.rdv_lat, rdvLon: cv.rdv_lon, departureAt: cv.departure_at,
           destLabel: cv.dest_label, destLat: cv.dest_lat, destLon: cv.dest_lon, etaAt: cv.eta_at,
+          routePoints: Array.isArray(cv.route_points) ? cv.route_points : null,
           createdAt: new Date(cv.created_at).getTime(),
           members: membersByConvoy[cv.id] || [],
         })));
@@ -1089,6 +1119,11 @@ if (p) {
     try {
       const rdvLat = cvRdvLat ?? pos.lat;
       const rdvLon = cvRdvLon ?? pos.lon;
+      // Le tracé complet suit les points ajoutés à la main (RDV → points de passage → destination)
+      // plutôt qu'une ligne droite, pour pouvoir longer la côte au lieu de couper à travers les terres.
+      const routePoints = cvDestLat != null && cvDestLon != null
+        ? [{ lat: rdvLat, lon: rdvLon }, ...cvWaypoints, { lat: cvDestLat, lon: cvDestLon }]
+        : null;
       const { data: cv, error } = await supabase
         .from("convoys")
         .insert({
@@ -1104,6 +1139,7 @@ if (p) {
           dest_lat: cvDestLat,
           dest_lon: cvDestLon,
           eta_at: cvEta || null,
+          route_points: routePoints,
         })
         .select()
         .single();
@@ -1124,6 +1160,7 @@ if (p) {
       }
       setCvName(""); setCvRdv(""); setCvRdvLat(null); setCvRdvLon(null);
       setCvDeparture(""); setCvDest(""); setCvDestLat(null); setCvDestLon(null); setCvEta("");
+      setCvWaypoints([]);
       setShowConvoyForm(false);
       setTab("convois");
     } catch (e) {}
@@ -1133,6 +1170,7 @@ if (p) {
   const handlePickLocation = (lat, lon) => {
   if (pickTarget === "rdv") { setCvRdvLat(lat); setCvRdvLon(lon); }
   if (pickTarget === "dest") { setCvDestLat(lat); setCvDestLon(lon); }
+  if (pickTarget === "waypoint") { setCvWaypoints((prev) => [...prev, { lat, lon }]); }
   setPickTarget(null);
   setShowConvoyForm(true);
   setTab("convois");
@@ -1145,6 +1183,7 @@ const startPicking = (target) => {
 };const openConvoyForm = () => {
     setCvRdvLat(pos?.lat ?? null);
     setCvRdvLon(pos?.lon ?? null);
+    setCvWaypoints([]);
     setShowConvoyForm(true);
   };
 
@@ -1922,6 +1961,31 @@ const startPicking = (target) => {
                   Sans coordonnées, la destination n'apparaîtra pas sur la carte — utilisez "Sur la carte" ou "Importer GPX".
                 </p>
               )}
+              <Field label="Points de passage (pour longer la côte)">
+                {cvWaypoints.length === 0 ? (
+                  <p className="text-xs" style={{ color: COLORS.muted }}>
+                    Aucun point ajouté — sans ça, le tracé sera une ligne droite entre le RDV et la destination.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 mb-2">
+                    {cvWaypoints.map((w, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded text-xs" style={inputStyle}>
+                        <span style={{ color: COLORS.text, fontFamily: "JetBrains Mono, monospace" }}>
+                          {i + 1}. {w.lat.toFixed(4)}, {w.lon.toFixed(4)}
+                        </span>
+                        <button onClick={() => setCvWaypoints((prev) => prev.filter((_, idx) => idx !== i))}
+                          style={{ color: COLORS.orange }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => startPicking("waypoint")}
+                  className="flex items-center gap-1 text-xs px-2 py-1.5 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                  <LocateFixed size={12} /> Ajouter un point sur la carte
+                </button>
+              </Field>
               <Field label="Heure d'arrivée estimée">
                 <input type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
