@@ -17,12 +17,31 @@ const FONTS = `
   font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 500;
-  padding: 6px 10px;
-  border-radius: 6px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 8px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  text-align: center;
 }
 .leaflet-tooltip.orca-tooltip::before {
   display: none;
+}
+.orca-tooltip-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: #E8EDF2;
+}
+.orca-tooltip-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #6C87A6;
+}
+.orca-tooltip-notes {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #E8EDF2;
+  opacity: 0.9;
 }
 `;
 
@@ -375,7 +394,6 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         radius: 11, color: COLORS.orange, fillColor: COLORS.orange, fillOpacity: 1, weight: 3,
       })
         .bindTooltip("Toi", { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-        .bindPopup("Toi")
         .addTo(layer);
     }
 
@@ -388,7 +406,6 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         radius: 10, color: c, fillColor: c, fillOpacity: b.stale ? 0.5 : 1, weight: 3,
       })
         .bindTooltip(boatDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-        .bindPopup(boatDesc)
         .on("click", () => onSelectBoat && onSelectBoat(b))
         .addTo(layer);
     });
@@ -404,10 +421,14 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
-      const alertDesc = `${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author} · ${fmtDateTime(new Date(a.createdAt).toISOString())}${a.notes ? `<br/>${a.notes}` : ""}`;
+      const alertDesc = `
+        <div class="orca-tooltip-title">${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} orque${a.count > 1 ? "s" : ""}</div>
+        <div class="orca-tooltip-meta">${fmtDateTime(new Date(a.createdAt).toISOString())} · ${a.author}</div>
+        <div class="orca-tooltip-meta">${a.lat.toFixed(4)}, ${a.lon.toFixed(4)}</div>
+        ${a.notes ? `<div class="orca-tooltip-notes">${a.notes}</div>` : ""}
+      `;
       const alertMarker = window.L.marker([a.lat, a.lon], { icon: orcaIcon })
         .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-        .bindPopup(alertDesc)
         .addTo(layer);
       alertMarkersRef.current[a.id] = alertMarker;
     });
@@ -426,7 +447,6 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         });
         window.L.marker([myConvoy.rdvLat, myConvoy.rdvLon], { icon: rdvIcon })
           .bindTooltip(rdvDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-          .bindPopup(rdvDesc)
           .addTo(layer);
       }
 
@@ -440,7 +460,6 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         });
         window.L.marker([myConvoy.destLat, myConvoy.destLon], { icon: destIcon })
           .bindTooltip(destDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-          .bindPopup(destDesc)
           .addTo(layer);
       }
 
@@ -458,7 +477,6 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
           { color: "#000000", weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" }
         )
           .bindTooltip(`Route du convoi · ${myConvoy.name}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-          .bindPopup(`Route du convoi · ${myConvoy.name}`)
           .addTo(layer);
       }
     }
@@ -471,10 +489,9 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         iconAnchor: [18, 18],
       });
       SHIPYARDS.forEach((s) => {
-        const yardDesc = `<b>${s.name}</b><br/>${s.address}${s.phone ? `<br/>${s.phone}` : ""}`;
+        const yardTooltip = `<div class="orca-tooltip-title">${s.name}</div><div class="orca-tooltip-meta">${s.address}${s.phone ? ` · ${s.phone}` : ""}</div>`;
         window.L.marker([s.lat, s.lon], { icon: wrenchIcon })
-          .bindTooltip(`${s.name}<br/>${s.address}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-          .bindPopup(yardDesc)
+          .bindTooltip(yardTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .addTo(layer);
       });
     }
@@ -488,11 +505,10 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       });
       RESCUE_STATIONS.forEach((s) => {
         const contact = RESCUE_CONTACT[s.org];
-        const contactLine = contact ? `<br/>VHF ${contact.vhf} · ☎ ${contact.phone}` : "";
-        const stationDesc = `<b>${s.name}</b><br/>${s.org}<br/>${s.address}${contactLine}`;
+        const contactLine = contact ? `<div class="orca-tooltip-meta">VHF ${contact.vhf} · ☎ ${contact.phone}</div>` : "";
+        const stationTooltip = `<div class="orca-tooltip-title">${s.name}</div><div class="orca-tooltip-meta">${s.address}</div>${contactLine}`;
         window.L.marker([s.lat, s.lon], { icon: buoyIcon })
-          .bindTooltip(`${s.name}<br/>${s.address}${contactLine}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-          .bindPopup(stationDesc)
+          .bindTooltip(stationTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .addTo(layer);
       });
     }
@@ -517,14 +533,13 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         const speedKn = dtH > 0 ? totalKm / 1.852 / dtH : null;
         const brg = bearingDeg(first.lat, first.lon, last.lat, last.lon);
 
+        const trailTooltip = `<div class="orca-tooltip-meta">${fmtDateTime(new Date(last.t).toISOString())}</div><div class="orca-tooltip-meta">${last.lat.toFixed(4)}, ${last.lon.toFixed(4)}</div>${speedKn != null ? `<div class="orca-tooltip-meta">${speedKn.toFixed(1)} nds · cap ${Math.round(brg)}°</div>` : ""}`;
         window.L.polyline(points.map((p) => [p.lat, p.lon]), {
           color,
           weight: 2,
           opacity: stale ? 0.3 : 0.7,
         })
-          .bindPopup(
-            `${fmtDateTime(new Date(last.t).toISOString())}<br/>${last.lat.toFixed(4)}, ${last.lon.toFixed(4)}${speedKn != null ? `<br/>${speedKn.toFixed(1)} nds · cap ${Math.round(brg)}°` : ""}`
-          )
+          .bindTooltip(trailTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .addTo(layer);
       });
     }
@@ -537,7 +552,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     if (!map || !focusTarget || focusTarget.lat == null || focusTarget.lon == null) return;
     map.setView([focusTarget.lat, focusTarget.lon], Math.max(map.getZoom(), 12), { animate: true });
     const marker = alertMarkersRef.current[focusTarget.id];
-    if (marker) marker.openPopup();
+    if (marker) marker.openTooltip();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget]);
 
