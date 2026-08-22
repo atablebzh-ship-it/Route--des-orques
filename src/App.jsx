@@ -269,11 +269,12 @@ function downloadGPX(xmlStr, filename) {
   URL.revokeObjectURL(url);
 }
 
-function Panel({ children, style, className = "" }) {
+function Panel({ children, style, className = "", ...rest }) {
   return (
     <div
       className={`rounded-lg border ${className}`}
       style={{ background: COLORS.panel, borderColor: COLORS.border, ...style }}
+      {...rest}
     >
       {children}
     </div>
@@ -327,11 +328,12 @@ const inputStyle = {
 const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23FF6B35" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23FF6B35" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23FF6B35" stroke-width="5"/></svg>') 22 22, crosshair`;
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, pickMode, onPickLocation, trails, showTrails, myBoatId }) {
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, pickMode, onPickLocation, trails, showTrails, myBoatId, focusTarget }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
   const onPickLocationRef = useRef(onPickLocation);
+  const alertMarkersRef = useRef({});
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
 
@@ -391,6 +393,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         .addTo(layer);
     });
 
+    alertMarkersRef.current = {};
     alertsWithDist.forEach((a) => {
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
@@ -402,10 +405,11 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         iconAnchor: [size / 2, size / 2],
       });
       const alertDesc = `${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} orque${a.count > 1 ? "s" : ""} · ${a.author} · ${fmtDateTime(new Date(a.createdAt).toISOString())}${a.notes ? `<br/>${a.notes}` : ""}`;
-      window.L.marker([a.lat, a.lon], { icon: orcaIcon })
+      const alertMarker = window.L.marker([a.lat, a.lon], { icon: orcaIcon })
         .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
         .bindPopup(alertDesc)
         .addTo(layer);
+      alertMarkersRef.current[a.id] = alertMarker;
     });
 
     if (myConvoy) {
@@ -525,6 +529,17 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       });
     }
   }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, trails, showTrails, myBoatId]);
+
+  // Centre/zoome la carte et ouvre la bulle du marqueur correspondant quand on clique
+  // sur une alerte dans la liste (géolocalisation visuelle demandée depuis l'onglet Alertes).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focusTarget || focusTarget.lat == null || focusTarget.lon == null) return;
+    map.setView([focusTarget.lat, focusTarget.lon], Math.max(map.getZoom(), 12), { animate: true });
+    const marker = alertMarkersRef.current[focusTarget.id];
+    if (marker) marker.openPopup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTarget]);
 
   return (
     <div
@@ -701,6 +716,7 @@ export default function RouteDesOrques() {
   const [alertsView, setAlertsView] = useState("recentes");
   const [showShipyards, setShowShipyards] = useState(true);
   const [showRescueStations, setShowRescueStations] = useState(true);
+  const [alertFocus, setAlertFocus] = useState(null);
   const [showTrails, setShowTrails] = useState(true);
   const [trails, setTrails] = useState({});
   const [showConvoyForm, setShowConvoyForm] = useState(false);
@@ -1588,6 +1604,7 @@ const startPicking = (target) => {
                 trails={trails}
                 showTrails={showTrails}
                 myBoatId={profile.id}
+                focusTarget={alertFocus}
               />
       </div>
 
@@ -1747,7 +1764,8 @@ const startPicking = (target) => {
                         ) : (
                           <div className="space-y-2">
                             {shown.map((a) => (
-                              <Panel key={a.id} className="p-3">
+                              <Panel key={a.id} className="p-3 cursor-pointer" onClick={() => { setAlertFocus({ lat: a.lat, lon: a.lon, id: a.id, ts: Date.now() }); setTab("carte"); }}
+                                title="Localiser ce marqueur sur la carte">
                                 <div className="flex items-start justify-between">
                                   <div className="flex items-center gap-2">
                                     {a.incident ? (
@@ -1766,9 +1784,14 @@ const startPicking = (target) => {
                                   <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
                                     {a.author} · {a.boatName}{a.dist !== null ? ` · ${a.dist.toFixed(1)} km (cap ${Math.round(a.brg)}°)` : ""}
                                   </p>
-                                  <button onClick={() => exportAlertGPX(a)} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
-                                    <Download size={14} />
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1 text-xs" style={{ color: COLORS.cyan }}>
+                                      <LocateFixed size={13} /> Voir
+                                    </span>
+                                    <button onClick={(e) => { e.stopPropagation(); exportAlertGPX(a); }} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
+                                      <Download size={14} />
+                                    </button>
+                                  </div>
                                 </div>
                               </Panel>
                             ))}
