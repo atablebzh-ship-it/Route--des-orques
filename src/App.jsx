@@ -619,12 +619,37 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         const routeLatLngs = seaRoute
           ? seaRoute.map((p) => [p.lat, p.lon])
           : [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]];
-        window.L.polyline(
-          routeLatLngs,
-          { color: "#000000", weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" }
-        )
-          .bindTooltip(`Route du convoi · ${myConvoy.name}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
-          .addTo(layer);
+
+        // Aux deux extrémités (départ et arrivée), le tracé approche le port en ligne
+        // approximative : il ne suit PAS le balisage nautique réel (chenal, bouées, feux).
+        // On distingue visuellement ces segments d'« approche » (fins, pointillés clairs)
+        // du « couloir » central (large, pointillés noirs) pour rappeler qu'à l'approche
+        // des ports il faut suivre le balisage réel (voir la couche OpenSeaMap sur la carte).
+        const approachStyle = { color: "#000000", weight: 3, opacity: 0.55, dashArray: "3 9", lineCap: "round" };
+        const corridorStyle = { color: "#000000", weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" };
+        const approachTooltip = `Approche du port · balisage nautique réel à suivre (voir bouées/chenal sur la carte) · ${myConvoy.name}`;
+        const corridorTooltip = `Route du convoi · ${myConvoy.name}`;
+
+        if (routeLatLngs.length <= 2) {
+          window.L.polyline(routeLatLngs, corridorStyle)
+            .bindTooltip(corridorTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+            .addTo(layer);
+        } else {
+          // Segment de départ (RDV -> 1er repère du couloir) : approche, non balisée.
+          window.L.polyline([routeLatLngs[0], routeLatLngs[1]], approachStyle)
+            .bindTooltip(approachTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+            .addTo(layer);
+          // Segment central (couloir maritime entre repères) : indicatif mais évite les terres.
+          if (routeLatLngs.length > 3) {
+            window.L.polyline(routeLatLngs.slice(1, -1), corridorStyle)
+              .bindTooltip(corridorTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+              .addTo(layer);
+          }
+          // Segment d'arrivée (dernier repère du couloir -> destination) : approche, non balisée.
+          window.L.polyline([routeLatLngs[routeLatLngs.length - 2], routeLatLngs[routeLatLngs.length - 1]], approachStyle)
+            .bindTooltip(approachTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+            .addTo(layer);
+        }
       }
     }
 
@@ -2834,7 +2859,7 @@ const startPicking = (target) => {
               )}
               {cvRdvLat != null && cvDestLat != null && (
                 <p className="text-xs" style={{ color: COLORS.muted }}>
-                  Le tracé affiché entre RDV et destination est indicatif (couloir maritime approximatif) — vérifie toujours ta route réelle avant de partir, notamment près des côtes découpées.
+                  Le tracé affiché entre RDV et destination est indicatif (couloir maritime approximatif) et ne suit pas le balisage nautique réel — près des ports, suis toujours le chenal et les bouées/feux réels (couche OpenSeaMap sur la carte) plutôt que ce tracé.
                 </p>
               )}
               <Field label="Heure d'arrivée estimée">
