@@ -10,6 +10,15 @@ const FONTS = `
   margin-top: 64px !important;
 }
 
+/* Rendu "vieille carte marine" : teinte parchemin/sépia appliquée uniquement aux tuiles
+   (fond OSM + surcouche OpenSeaMap), sans toucher aux marqueurs, routes ni bulles. */
+.leaflet-container {
+  background: #d7c9a3 !important;
+}
+.leaflet-tile-pane {
+  filter: sepia(0.5) saturate(1.4) hue-rotate(-8deg) brightness(0.94) contrast(1.1);
+}
+
 .leaflet-tooltip.orca-tooltip {
   background: #0F1F38;
   color: #FFFFFF;
