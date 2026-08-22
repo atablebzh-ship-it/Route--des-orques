@@ -720,14 +720,26 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const accentBg = isMine ? COLORS.green : COLORS.cyan;
       const accentBorder = isMine ? "#0A1F14" : "#0A2E33";
 
-      const popupHtml = isMine
-        ? `<div class="orca-tooltip-title">${cv.name}</div><div class="orca-tooltip-meta">Ton convoi</div>`
-        : isPending
-        ? `<div class="orca-tooltip-title">${cv.name}</div><div class="orca-tooltip-meta">Organisé par ${cv.organizerPseudo} · ${cv.organizerBoat}</div><div class="orca-tooltip-notes">Demande envoyée — en attente de confirmation</div>`
-        : `<div class="orca-tooltip-title">${cv.name}</div><div class="orca-tooltip-meta">Organisé par ${cv.organizerPseudo} · ${cv.organizerBoat}</div><button id="join-btn-${cv.id}" style="margin-top:8px;width:100%;padding:9px 10px;border-radius:6px;border:none;background:${COLORS.green};color:#0A1F14;font-weight:600;font-size:13px;cursor:pointer;">Rejoindre le convoi</button>`;
+      // Une seule bulle par élément, au clic uniquement (plus de tooltip au survol en plus du
+      // popup : les deux se chevauchaient et affichaient des infos différentes au même endroit).
+      // Le popup regroupe tout : repère (RDV/destination/route), organisateur, et le bouton
+      // pour rejoindre quand ce n'est pas déjà ton convoi.
+      const buildPopupHtml = (headline) => {
+        const lines = [`<div class="orca-tooltip-title">${cv.name}</div>`];
+        if (headline) lines.push(`<div class="orca-tooltip-meta">${headline}</div>`);
+        lines.push(`<div class="orca-tooltip-meta">Organisé par ${cv.organizerPseudo} · ${cv.organizerBoat}</div>`);
+        if (isMine) {
+          lines.push(`<div class="orca-tooltip-notes" style="color:${COLORS.green};">Ton convoi</div>`);
+        } else if (isPending) {
+          lines.push(`<div class="orca-tooltip-notes">Demande envoyée — en attente de confirmation</div>`);
+        } else {
+          lines.push(`<button id="join-btn-${cv.id}" style="margin-top:8px;width:100%;padding:9px 10px;border-radius:6px;border:none;background:${COLORS.green};color:#0A1F14;font-weight:600;font-size:13px;cursor:pointer;">Rejoindre le convoi</button>`);
+        }
+        return lines.join("");
+      };
 
-      const bindJoinPopup = (marker) => {
-        marker.bindPopup(popupHtml, { className: "orca-tooltip", maxWidth: 240 });
+      const bindJoinPopup = (marker, headline) => {
+        marker.bindPopup(buildPopupHtml(headline), { className: "orca-tooltip", maxWidth: 240 });
         if (!isMine && !isPending) {
           marker.on("popupopen", () => {
             const btn = document.getElementById(`join-btn-${cv.id}`);
@@ -737,30 +749,28 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       };
 
       if (hasRdv) {
-        const rdvDesc = `RDV · ${cv.name}${cv.rdvLabel ? ` · ${cv.rdvLabel}` : ""}`;
+        const rdvHeadline = `RDV${cv.rdvLabel ? ` · ${cv.rdvLabel}` : ""}`;
         const rdvIcon = window.L.divIcon({
           html: `<div style="width:42px;height:42px;border-radius:50%;background:${accentBg};border:3px solid ${accentBorder};display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">🏁</div>`,
           className: "",
           iconSize: [42, 42],
           iconAnchor: [21, 21],
         });
-        const rdvMarker = window.L.marker([cv.rdvLat, cv.rdvLon], { icon: rdvIcon })
-          .bindTooltip(rdvDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 });
-        bindJoinPopup(rdvMarker);
+        const rdvMarker = window.L.marker([cv.rdvLat, cv.rdvLon], { icon: rdvIcon });
+        bindJoinPopup(rdvMarker, rdvHeadline);
         rdvMarker.addTo(layer);
       }
 
       if (hasDest) {
-        const destDesc = `Destination · ${cv.name}${cv.destLabel ? ` · ${cv.destLabel}` : ""}`;
+        const destHeadline = `Destination${cv.destLabel ? ` · ${cv.destLabel}` : ""}`;
         const destIcon = window.L.divIcon({
           html: `<div style="width:42px;height:42px;border-radius:50%;background:${accentBg};border:3px solid ${accentBorder};display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">🏁</div>`,
           className: "",
           iconSize: [42, 42],
           iconAnchor: [21, 21],
         });
-        const destMarker = window.L.marker([cv.destLat, cv.destLon], { icon: destIcon })
-          .bindTooltip(destDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 });
-        bindJoinPopup(destMarker);
+        const destMarker = window.L.marker([cv.destLat, cv.destLon], { icon: destIcon });
+        bindJoinPopup(destMarker, destHeadline);
         destMarker.addTo(layer);
       }
 
@@ -783,31 +793,27 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         const routeColor = isMine ? "#000000" : COLORS.cyan;
         const approachStyle = { color: routeColor, weight: isMine ? 3 : 2.5, opacity: isMine ? 0.55 : 0.5, dashArray: "3 9", lineCap: "round" };
         const corridorStyle = { color: routeColor, weight: isMine ? 5 : 4, opacity: isMine ? 0.9 : 0.75, dashArray: "12 10", lineCap: "round" };
-        const approachTooltip = `Approche du port · balisage nautique réel à suivre (voir bouées/chenal sur la carte) · ${cv.name}`;
-        const corridorTooltip = `Route du convoi · ${cv.name}`;
+        const approachHeadline = "Approche du port · balisage nautique réel à suivre (voir bouées/chenal sur la carte)";
+        const corridorHeadline = "Route du convoi (indicative)";
 
         if (routeLatLngs.length <= 2) {
-          const line = window.L.polyline(routeLatLngs, corridorStyle)
-            .bindTooltip(corridorTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 });
-          bindJoinPopup(line);
+          const line = window.L.polyline(routeLatLngs, corridorStyle);
+          bindJoinPopup(line, corridorHeadline);
           line.addTo(layer);
         } else {
           // Segment de départ (RDV -> 1er repère du couloir) : approche, non balisée.
-          const startLine = window.L.polyline([routeLatLngs[0], routeLatLngs[1]], approachStyle)
-            .bindTooltip(approachTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 });
-          bindJoinPopup(startLine);
+          const startLine = window.L.polyline([routeLatLngs[0], routeLatLngs[1]], approachStyle);
+          bindJoinPopup(startLine, approachHeadline);
           startLine.addTo(layer);
           // Segment central (couloir maritime entre repères) : indicatif mais évite les terres.
           if (routeLatLngs.length > 3) {
-            const midLine = window.L.polyline(routeLatLngs.slice(1, -1), corridorStyle)
-              .bindTooltip(corridorTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 });
-            bindJoinPopup(midLine);
+            const midLine = window.L.polyline(routeLatLngs.slice(1, -1), corridorStyle);
+            bindJoinPopup(midLine, corridorHeadline);
             midLine.addTo(layer);
           }
           // Segment d'arrivée (dernier repère du couloir -> destination) : approche, non balisée.
-          const endLine = window.L.polyline([routeLatLngs[routeLatLngs.length - 2], routeLatLngs[routeLatLngs.length - 1]], approachStyle)
-            .bindTooltip(approachTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 });
-          bindJoinPopup(endLine);
+          const endLine = window.L.polyline([routeLatLngs[routeLatLngs.length - 2], routeLatLngs[routeLatLngs.length - 1]], approachStyle);
+          bindJoinPopup(endLine, approachHeadline);
           endLine.addTo(layer);
         }
       }
