@@ -56,6 +56,33 @@ const OFFICIAL_ORCA_SOURCES = [
   { label: "Cruising Association — Orca Attack Reports", url: "https://theca.org.uk/orca-alert" },
 ];
 
+// --- Couloir maritime Brest → Gibraltar : points au large des principaux caps, pour un tracé
+// automatique de route qui longe la côte au lieu de couper à travers les terres (façon
+// "autorouting" Navionics). Coordonnées approximatives placées volontairement au large.
+const SEA_LANE = [
+  { name: "Ouessant", lat: 48.45, lon: -5.35 },
+  { name: "Penmarch", lat: 47.75, lon: -4.65 },
+  { name: "Belle-Île", lat: 47.25, lon: -3.4 },
+  { name: "Île de Ré", lat: 46.05, lon: -1.65 },
+  { name: "Cap Ferret", lat: 44.55, lon: -1.5 },
+  { name: "Hendaye", lat: 43.45, lon: -1.95 },
+  { name: "Bilbao", lat: 43.48, lon: -3.05 },
+  { name: "Santander", lat: 43.58, lon: -3.95 },
+  { name: "Cabo Peñas", lat: 43.72, lon: -6.05 },
+  { name: "Cabo Ortegal", lat: 43.95, lon: -7.95 },
+  { name: "A Coruña", lat: 43.55, lon: -8.55 },
+  { name: "Cabo Fisterra", lat: 42.85, lon: -9.45 },
+  { name: "Vigo", lat: 42.05, lon: -9.05 },
+  { name: "Porto", lat: 41.25, lon: -9.05 },
+  { name: "Peniche", lat: 39.4, lon: -9.6 },
+  { name: "Cascais", lat: 38.55, lon: -9.65 },
+  { name: "Sagres", lat: 37.0, lon: -9.05 },
+  { name: "Portimão", lat: 37.05, lon: -8.65 },
+  { name: "Cadix", lat: 36.5, lon: -6.7 },
+  { name: "Tarifa", lat: 35.98, lon: -5.65 },
+  { name: "Gibraltar", lat: 36.12, lon: -5.4 },
+];
+
 // Chantiers navals / réparateurs (haul-out, urgences) sur la zone Brest → Gibraltar/Cadix
 const SHIPYARDS = [
   { name: "Port de Brest — Réparation Navale", address: "Brest, France", lat: 48.3876, lon: -4.4591, phone: "+33 2 98 14 77 59" },
@@ -107,6 +134,33 @@ function bearingDeg(lat1, lon1, lat2, lon2) {
     Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
     Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+// Point du SEA_LANE le plus proche d'une position donnée (index dans le tableau).
+function nearestLaneIndex(lat, lon) {
+  let best = 0;
+  let bestDist = Infinity;
+  SEA_LANE.forEach((p, i) => {
+    const d = distanceKm(lat, lon, p.lat, p.lon);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return best;
+}
+
+// Trace une route qui longe la côte entre deux points, en passant par le couloir maritime
+// SEA_LANE plutôt qu'en ligne droite (façon "autorouting" d'un traceur de route nautique).
+function computeSeaRoute(a, b) {
+  if (a == null || b == null || a.lat == null || b.lat == null) return null;
+  const iA = nearestLaneIndex(a.lat, a.lon);
+  const iB = nearestLaneIndex(b.lat, b.lon);
+  const start = { lat: a.lat, lon: a.lon };
+  const end = { lat: b.lat, lon: b.lon };
+  if (iA === iB) return [start, end];
+  const step = iA < iB ? 1 : -1;
+  const middle = [];
+  for (let i = iA; i !== iB; i += step) middle.push(SEA_LANE[i]);
+  middle.push(SEA_LANE[iB]);
+  return [start, ...middle, end];
 }
 
 function timeAgo(ts) {
@@ -260,17 +314,22 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     if (pos) {
       window.L.circleMarker([pos.lat, pos.lon], {
         radius: 11, color: COLORS.orange, fillColor: COLORS.orange, fillOpacity: 1, weight: 3,
-      }).bindPopup("Toi").addTo(layer);
+      })
+        .bindTooltip("Toi", { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+        .bindPopup("Toi")
+        .addTo(layer);
     }
 
     others.forEach((b) => {
       if (b.lat == null || b.lon == null) return;
       const inMyConvoy = myConvoyMemberIds.includes(b.id);
       const c = b.stale ? COLORS.muted : inMyConvoy ? COLORS.green : COLORS.cyan;
+      const boatDesc = `${b.pseudo} · ${b.boatName}${b.stale ? " · inactif" : ""}`;
       window.L.circleMarker([b.lat, b.lon], {
         radius: 10, color: c, fillColor: c, fillOpacity: b.stale ? 0.5 : 1, weight: 3,
       })
-        .bindPopup(`${b.pseudo} · ${b.boatName}`)
+        .bindTooltip(boatDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+        .bindPopup(boatDesc)
         .on("click", () => onSelectBoat && onSelectBoat(b))
         .addTo(layer);
     });
@@ -321,12 +380,14 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       }
 
       if (hasRdv && hasDest) {
-        // Suit les points de passage ajoutés à la main (pour longer la côte) quand ils existent,
-        // sinon retombe sur une ligne droite RDV → destination (purement indicative).
-        const routeLatLngs =
-          Array.isArray(myConvoy.routePoints) && myConvoy.routePoints.length >= 2
-            ? myConvoy.routePoints.map((p) => [p.lat, p.lon])
-            : [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]];
+        // Tracé automatique : longe le couloir maritime SEA_LANE plutôt qu'une ligne droite.
+        const seaRoute = computeSeaRoute(
+          { lat: myConvoy.rdvLat, lon: myConvoy.rdvLon },
+          { lat: myConvoy.destLat, lon: myConvoy.destLon }
+        );
+        const routeLatLngs = seaRoute
+          ? seaRoute.map((p) => [p.lat, p.lon])
+          : [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]];
         window.L.polyline(
           routeLatLngs,
           { color: COLORS.green, weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" }
@@ -588,8 +649,7 @@ export default function RouteDesOrques() {
   const [cvDest, setCvDest] = useState("");
   const [cvDestLat, setCvDestLat] = useState(null);
   const [cvDestLon, setCvDestLon] = useState(null);
-  const [cvEta, setCvEta] = useState("");const [pickTarget, setPickTarget] = useState(null); // "rdv" | "dest" | "waypoint" | null
-  const [cvWaypoints, setCvWaypoints] = useState([]); // points intermédiaires pour longer la côte, dans l'ordre
+  const [cvEta, setCvEta] = useState("");const [pickTarget, setPickTarget] = useState(null); // "rdv" | "dest" | null
 
   const [showImportPicker, setShowImportPicker] = useState(false);
   const [importedWaypoints, setImportedWaypoints] = useState([]);
@@ -769,7 +829,6 @@ if (p) {
           id: cv.id, name: cv.name, organizerId: cv.organizer_id, organizerPseudo: cv.organizer_pseudo, organizerBoat: cv.organizer_boat,
           rdvLabel: cv.rdv_label, rdvLat: cv.rdv_lat, rdvLon: cv.rdv_lon, departureAt: cv.departure_at,
           destLabel: cv.dest_label, destLat: cv.dest_lat, destLon: cv.dest_lon, etaAt: cv.eta_at,
-          routePoints: Array.isArray(cv.route_points) ? cv.route_points : null,
           createdAt: new Date(cv.created_at).getTime(),
           members: membersByConvoy[cv.id] || [],
         })));
@@ -1119,11 +1178,6 @@ if (p) {
     try {
       const rdvLat = cvRdvLat ?? pos.lat;
       const rdvLon = cvRdvLon ?? pos.lon;
-      // Le tracé complet suit les points ajoutés à la main (RDV → points de passage → destination)
-      // plutôt qu'une ligne droite, pour pouvoir longer la côte au lieu de couper à travers les terres.
-      const routePoints = cvDestLat != null && cvDestLon != null
-        ? [{ lat: rdvLat, lon: rdvLon }, ...cvWaypoints, { lat: cvDestLat, lon: cvDestLon }]
-        : null;
       const { data: cv, error } = await supabase
         .from("convoys")
         .insert({
@@ -1139,7 +1193,6 @@ if (p) {
           dest_lat: cvDestLat,
           dest_lon: cvDestLon,
           eta_at: cvEta || null,
-          route_points: routePoints,
         })
         .select()
         .single();
@@ -1160,7 +1213,6 @@ if (p) {
       }
       setCvName(""); setCvRdv(""); setCvRdvLat(null); setCvRdvLon(null);
       setCvDeparture(""); setCvDest(""); setCvDestLat(null); setCvDestLon(null); setCvEta("");
-      setCvWaypoints([]);
       setShowConvoyForm(false);
       setTab("convois");
     } catch (e) {}
@@ -1170,7 +1222,6 @@ if (p) {
   const handlePickLocation = (lat, lon) => {
   if (pickTarget === "rdv") { setCvRdvLat(lat); setCvRdvLon(lon); }
   if (pickTarget === "dest") { setCvDestLat(lat); setCvDestLon(lon); }
-  if (pickTarget === "waypoint") { setCvWaypoints((prev) => [...prev, { lat, lon }]); }
   setPickTarget(null);
   setShowConvoyForm(true);
   setTab("convois");
@@ -1183,7 +1234,6 @@ const startPicking = (target) => {
 };const openConvoyForm = () => {
     setCvRdvLat(pos?.lat ?? null);
     setCvRdvLon(pos?.lon ?? null);
-    setCvWaypoints([]);
     setShowConvoyForm(true);
   };
 
@@ -1961,31 +2011,6 @@ const startPicking = (target) => {
                   Sans coordonnées, la destination n'apparaîtra pas sur la carte — utilisez "Sur la carte" ou "Importer GPX".
                 </p>
               )}
-              <Field label="Points de passage (pour longer la côte)">
-                {cvWaypoints.length === 0 ? (
-                  <p className="text-xs" style={{ color: COLORS.muted }}>
-                    Aucun point ajouté — sans ça, le tracé sera une ligne droite entre le RDV et la destination.
-                  </p>
-                ) : (
-                  <div className="space-y-1.5 mb-2">
-                    {cvWaypoints.map((w, i) => (
-                      <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded text-xs" style={inputStyle}>
-                        <span style={{ color: COLORS.text, fontFamily: "JetBrains Mono, monospace" }}>
-                          {i + 1}. {w.lat.toFixed(4)}, {w.lon.toFixed(4)}
-                        </span>
-                        <button onClick={() => setCvWaypoints((prev) => prev.filter((_, idx) => idx !== i))}
-                          style={{ color: COLORS.orange }}>
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button onClick={() => startPicking("waypoint")}
-                  className="flex items-center gap-1 text-xs px-2 py-1.5 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                  <LocateFixed size={12} /> Ajouter un point sur la carte
-                </button>
-              </Field>
               <Field label="Heure d'arrivée estimée">
                 <input type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
