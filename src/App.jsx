@@ -237,11 +237,13 @@ function IconBtn({ onClick, active, children, label }) {
   return (
            <button
           onClick={onClick}
-          className="flex flex-col items-center justify-center gap-1 px-4 py-2.5"
+          className="flex flex-col items-center justify-center gap-1 px-3 py-2.5 rounded-full shadow-lg"
           style={{
             color: active ? COLORS.cyan : COLORS.text,
-            background: active ? COLORS.cyanDim : "transparent",
-            opacity: active ? 1 : 0.75,
+            background: active ? COLORS.cyanDim : "rgba(18,40,63,0.92)",
+            backdropFilter: "blur(12px)",
+            border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
+            opacity: active ? 1 : 0.85,
             minWidth: 60,
           }}
         >
@@ -357,9 +359,13 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
       if (hasRdv) {
         const rdvDesc = `RDV · ${myConvoy.name}${myConvoy.rdvLabel ? ` · ${myConvoy.rdvLabel}` : ""}`;
-        window.L.circleMarker([myConvoy.rdvLat, myConvoy.rdvLon], {
-          radius: 14, color: COLORS.green, fillColor: COLORS.green, fillOpacity: 0.9, weight: 3,
-        })
+        const rdvIcon = window.L.divIcon({
+          html: `<div style="background:${COLORS.green};width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #071A10;font-size:20px;">🏁</div>`,
+          className: "",
+          iconSize: [38, 38],
+          iconAnchor: [19, 19],
+        });
+        window.L.marker([myConvoy.rdvLat, myConvoy.rdvLon], { icon: rdvIcon })
           .bindTooltip(rdvDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .bindPopup(rdvDesc)
           .addTo(layer);
@@ -390,7 +396,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
           : [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]];
         window.L.polyline(
           routeLatLngs,
-          { color: COLORS.green, weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" }
+          { color: "#000000", weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" }
         )
           .bindTooltip(`Route du convoi · ${myConvoy.name}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .bindPopup(`Route du convoi · ${myConvoy.name}`)
@@ -1858,7 +1864,7 @@ const startPicking = (target) => {
 
       {/* Barre d'onglets flottante */}
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
-       <div className="flex rounded-full shadow-lg" style={{ background: "rgba(18,40,63,0.92)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.cyanDim}`, padding: "4px 6px", gap: 8 }}>
+       <div className="flex" style={{ gap: 10 }}>
           <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
           <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
           <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><AlertTriangle size={17} /></IconBtn>
