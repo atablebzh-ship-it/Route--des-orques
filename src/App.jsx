@@ -419,6 +419,30 @@ function downloadGPX(xmlStr, filename) {
   URL.revokeObjectURL(url);
 }
 
+// Interrupteur type "switch" pour les préférences de notifications — chaque utilisateur
+// choisit lui-même quels types de notifications push il reçoit, dans l'onglet "Moi".
+function ToggleRow({ label, sub, value, onToggle }) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="pr-3">
+        <p className="text-sm" style={{ color: COLORS.text }}>{label}</p>
+        {sub && <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>{sub}</p>}
+      </div>
+      <button onClick={onToggle} title={value ? "Désactiver" : "Activer"}
+        className="shrink-0 rounded-full"
+        style={{
+          width: 44, height: 26, position: "relative",
+          background: value ? COLORS.green : "rgba(255,255,255,0.08)",
+          border: `1px solid ${value ? COLORS.green : COLORS.border}`,
+        }}>
+        <span style={{
+          position: "absolute", top: 2, left: value ? 20 : 2, width: 20, height: 20, borderRadius: "50%",
+          background: "#FFFFFF", transition: "left 0.15s",
+        }} />
+      </button>
+    </div>
+  );
+}
 function Panel({ children, style, className = "", ...rest }) {
   return (
     <div
@@ -1260,6 +1284,11 @@ if (p) {
             id: b.id, pseudo: b.pseudo, boatName: b.boat_name, lat: b.lat, lon: b.lon,
             heading: b.heading, status: b.status, updatedAt: new Date(b.updated_at).getTime(),
             alertRadiusKm: b.alert_radius_km === undefined ? DEFAULT_ALERT_RADIUS_KM : b.alert_radius_km,
+            // Préférences de notifications push, choisies par chaque utilisateur dans l'onglet
+            // "Moi" — true par défaut si jamais réglées (colonnes ajoutées après coup en base).
+            notifySpecies: b.notify_species === false ? false : true,
+            notifyConvoys: b.notify_convoys === false ? false : true,
+            notifyConvoyActivity: b.notify_convoy_activity === false ? false : true,
           };
         });
         setBoats(map);
@@ -1351,6 +1380,9 @@ if (p) {
             [profile.id]: {
               id: profile.id, pseudo: profile.pseudo, boatName: profile.boatName, lat, lon, heading: headingVal, status, updatedAt: Date.now(),
               alertRadiusKm: prev[profile.id]?.alertRadiusKm ?? DEFAULT_ALERT_RADIUS_KM,
+              notifySpecies: prev[profile.id]?.notifySpecies ?? true,
+              notifyConvoys: prev[profile.id]?.notifyConvoys ?? true,
+              notifyConvoyActivity: prev[profile.id]?.notifyConvoyActivity ?? true,
             },
           }));
         }
@@ -1365,6 +1397,23 @@ if (p) {
     setBoats((prev) => (prev[profile.id] ? { ...prev, [profile.id]: { ...prev[profile.id], alertRadiusKm: km } } : prev));
     try {
       await supabase.from("boats").update({ alert_radius_km: km }).eq("id", profile.id);
+    } catch (e) {}
+  };
+
+  // Chaque utilisateur choisit lui-même, dans l'onglet "Moi", quels types de notifications
+  // push il reçoit. Stocké par bateau (colonnes notify_species / notify_convoys /
+  // notify_convoy_activity sur la table "boats"), donc chacun règle ses propres préférences
+  // sans affecter les autres.
+  const NOTIFY_PREF_COLUMNS = {
+    notifySpecies: "notify_species",
+    notifyConvoys: "notify_convoys",
+    notifyConvoyActivity: "notify_convoy_activity",
+  };
+  const updateNotifyPref = async (field, value) => {
+    if (!profile) return;
+    setBoats((prev) => (prev[profile.id] ? { ...prev, [profile.id]: { ...prev[profile.id], [field]: value } } : prev));
+    try {
+      await supabase.from("boats").update({ [NOTIFY_PREF_COLUMNS[field]]: value }).eq("id", profile.id);
     } catch (e) {}
   };
 
@@ -1665,16 +1714,21 @@ if (p) {
 
         const animalLabel = count > 1 ? sp.labelPlural : sp.label.toLowerCase();
         const myConvoyNow = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
-        const memberIds = myConvoyNow ? myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
+        // Ne notifie que les bateaux qui ont choisi de recevoir ce type de notification
+        // (réglage personnel dans l'onglet "Moi" → notifySpecies).
+        const memberIds = myConvoyNow
+          ? myConvoyNow.members.filter((m) => m.status === "confirme" && boats[m.boatId]?.notifySpecies !== false).map((m) => m.boatId)
+          : [];
         if (memberIds.length) {
           sendPush(memberIds, `${sp.emoji} ${sp.pushTitle}`, `${profile.pseudo} a signalé ${count} ${animalLabel} près de votre convoi`, "/");
         }
 
         // Notifie aussi tous les autres bateaux dont le rayon d'alerte personnalisé couvre
-        // la position du signalement (rayon "illimité" = null → toujours notifié).
-        const memberIdSet = new Set(memberIds);
+        // la position du signalement (rayon "illimité" = null → toujours notifié) et qui ont
+        // choisi de recevoir ce type de notification.
+        const memberIdSet = new Set(myConvoyNow ? myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : []);
         const nearbyIds = Object.values(boats)
-          .filter((b) => b.id !== profile.id && !memberIdSet.has(b.id) && b.lat != null && b.lon != null)
+          .filter((b) => b.id !== profile.id && !memberIdSet.has(b.id) && b.lat != null && b.lon != null && b.notifySpecies !== false)
           .filter((b) => (b.alertRadiusKm == null ? true : distanceKm(lat, lon, b.lat, b.lon) <= b.alertRadiusKm))
           .map((b) => b.id);
         if (nearbyIds.length) {
@@ -1747,7 +1801,7 @@ if (p) {
 
         const NEARBY_KM = 30;
         const nearbyIds = Object.values(boats)
-          .filter((b) => b.id !== profile.id && b.lat != null && b.lon != null)
+          .filter((b) => b.id !== profile.id && b.lat != null && b.lon != null && b.notifyConvoys !== false)
           .filter((b) => distanceKm(rdvLat, rdvLon, b.lat, b.lon) <= NEARBY_KM)
           .map((b) => b.id);
         sendPush(nearbyIds, "Nouveau convoi près de toi", `${profile.pseudo} organise "${cv.name}"`, "/");
@@ -1865,7 +1919,7 @@ const startPicking = (target) => {
       await supabase.from("convoy_members").insert({ convoy_id: convoyId, boat_id: profile.id, pseudo: profile.pseudo, boat_name: profile.boatName, status: "en_attente" });
       await fetchShared();
       const cv = convoys.find((c) => c.id === convoyId);
-      if (cv) {
+      if (cv && boats[cv.organizerId]?.notifyConvoyActivity !== false) {
         sendPush([cv.organizerId], "Nouvelle demande de convoi", `${profile.pseudo} demande à rejoindre "${cv.name}"`, "/");
       }
     } catch (e) {}
@@ -1879,7 +1933,7 @@ const startPicking = (target) => {
         await supabase.from("convoy_members").delete().eq("convoy_id", convoyId).eq("boat_id", boatId);
       }
       await fetchShared();
-      if (accept) {
+      if (accept && boats[boatId]?.notifyConvoyActivity !== false) {
         const cv = convoys.find((c) => c.id === convoyId);
         sendPush([boatId], "Demande acceptée", `Tu as rejoint le convoi "${cv?.name || ""}"`, "/");
       }
@@ -2548,6 +2602,31 @@ const startPicking = (target) => {
                   </Panel>
 
                   <Panel className="p-4">
+                    <p className="text-sm" style={{ color: COLORS.text }}>Types de notifications</p>
+                    <p className="text-xs mt-0.5 mb-1" style={{ color: COLORS.muted }}>
+                      Choisis toi-même les notifications push que tu reçois (si les notifications sont activées ci-dessus).
+                    </p>
+                    <ToggleRow
+                      label="Signalements d'animaux"
+                      sub="Orques, dauphins, baleines… dans ton rayon d'alerte"
+                      value={boats[profile.id]?.notifySpecies !== false}
+                      onToggle={() => updateNotifyPref("notifySpecies", !(boats[profile.id]?.notifySpecies !== false))}
+                    />
+                    <ToggleRow
+                      label="Nouveaux convois à proximité"
+                      sub="Quand un convoi se crée près de toi"
+                      value={boats[profile.id]?.notifyConvoys !== false}
+                      onToggle={() => updateNotifyPref("notifyConvoys", !(boats[profile.id]?.notifyConvoys !== false))}
+                    />
+                    <ToggleRow
+                      label="Activité de mes convois"
+                      sub="Demandes pour rejoindre, demandes acceptées"
+                      value={boats[profile.id]?.notifyConvoyActivity !== false}
+                      onToggle={() => updateNotifyPref("notifyConvoyActivity", !(boats[profile.id]?.notifyConvoyActivity !== false))}
+                    />
+                  </Panel>
+
+                  <Panel className="p-4">
                     <p className="text-sm" style={{ color: COLORS.text }}>Rayon d'alerte orques</p>
                     <p className="text-xs mt-0.5 mb-2.5" style={{ color: COLORS.muted }}>
                       Distance à partir de laquelle tu reçois une notification pour un nouveau signalement d'orques
@@ -2715,7 +2794,7 @@ const startPicking = (target) => {
           <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={51} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
           <IconBtn onClick={() => setShowShipyards((v) => !v)} active={showShipyards} label="Chantiers"><span style={{ fontSize: 44, lineHeight: 1, display: "block" }}>🛠️</span></IconBtn>
           <IconBtn onClick={() => setShowRescueStations((v) => !v)} active={showRescueStations} label="Secours"><span style={{ fontSize: 44, lineHeight: 1, display: "block" }}>🛟</span></IconBtn>
-          <IconBtn onClick={() => setShowFishFarms((v) => !v)} active={showFishFarms} label="Pêche"><FishNetIcon size={44} color={COLORS.cyan} /></IconBtn>
+          <IconBtn onClick={() => setShowFishFarms((v) => !v)} active={showFishFarms} label="Élevage"><FishNetIcon size={44} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
 
