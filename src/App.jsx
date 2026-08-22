@@ -197,6 +197,9 @@ const inputStyle = {
   border: `1px solid ${COLORS.border}`,
 };
 
+// --- Curseur de sélection sur la carte : viseur épais et bien visible pendant le "Sur la carte" ---
+const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23FF6B35" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23FF6B35" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23FF6B35" stroke-width="5"/></svg>') 22 22, crosshair`;
+
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
 function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, pickMode, onPickLocation, trails, showTrails, myBoatId }) {
   const mapElRef = useRef(null);
@@ -241,7 +244,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
     if (pos) {
       window.L.circleMarker([pos.lat, pos.lon], {
-        radius: 8, color: COLORS.orange, fillColor: COLORS.orange, fillOpacity: 1, weight: 2,
+        radius: 11, color: COLORS.orange, fillColor: COLORS.orange, fillOpacity: 1, weight: 3,
       }).bindPopup("Toi").addTo(layer);
     }
 
@@ -250,7 +253,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       const inMyConvoy = myConvoyMemberIds.includes(b.id);
       const c = b.stale ? COLORS.muted : inMyConvoy ? COLORS.green : COLORS.cyan;
       window.L.circleMarker([b.lat, b.lon], {
-        radius: 7, color: c, fillColor: c, fillOpacity: b.stale ? 0.5 : 1, weight: 2,
+        radius: 10, color: c, fillColor: c, fillOpacity: b.stale ? 0.5 : 1, weight: 3,
       })
         .bindPopup(`${b.pseudo} · ${b.boatName}`)
         .on("click", () => onSelectBoat && onSelectBoat(b))
@@ -260,9 +263,9 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     alertsWithDist.forEach((a) => {
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
-      const size = isRecent ? 28 : 20;
+      const size = isRecent ? 36 : 26;
       const orcaIcon = window.L.divIcon({
-        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 4 : 2}px ${color}40;opacity:${isRecent ? 1 : 0.55};font-size:${isRecent ? 14 : 11}px;">🐋</div>`,
+        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 6 : 3}px ${color}55;opacity:${isRecent ? 1 : 0.7};font-size:${isRecent ? 18 : 14}px;">🐋</div>`,
         className: "",
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
@@ -280,7 +283,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
       if (hasRdv) {
         window.L.circleMarker([myConvoy.rdvLat, myConvoy.rdvLon], {
-          radius: 8, color: COLORS.green, fillColor: COLORS.green, fillOpacity: 0.9, weight: 2,
+          radius: 11, color: COLORS.green, fillColor: COLORS.green, fillOpacity: 0.9, weight: 3,
         })
           .bindPopup(`RDV · ${myConvoy.name}${myConvoy.rdvLabel ? ` · ${myConvoy.rdvLabel}` : ""}`)
           .addTo(layer);
@@ -288,10 +291,10 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
       if (hasDest) {
         const destIcon = window.L.divIcon({
-          html: `<div style="background:${COLORS.orange};width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #1A0E08;font-size:13px;">🏁</div>`,
+          html: `<div style="background:${COLORS.orange};width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #1A0E08;font-size:16px;">🏁</div>`,
           className: "",
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
         });
         window.L.marker([myConvoy.destLat, myConvoy.destLon], { icon: destIcon })
           .bindPopup(`Destination · ${myConvoy.name}${myConvoy.destLabel ? ` · ${myConvoy.destLabel}` : ""}`)
@@ -301,7 +304,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       if (hasRdv && hasDest) {
         window.L.polyline(
           [[myConvoy.rdvLat, myConvoy.rdvLon], [myConvoy.destLat, myConvoy.destLon]],
-          { color: COLORS.green, weight: 2, opacity: 0.8, dashArray: "6 8" }
+          { color: COLORS.green, weight: 5, opacity: 0.9, dashArray: "12 10", lineCap: "round" }
         )
           .bindPopup(`Route du convoi · ${myConvoy.name}`)
           .addTo(layer);
@@ -310,10 +313,10 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
     if (showShipyards) {
       const wrenchIcon = window.L.divIcon({
-        html: `<div style="background:${COLORS.green};width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #0A1F14;font-size:12px;">🔧</div>`,
+        html: `<div style="background:${COLORS.green};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1F14;font-size:15px;">🛠️</div>`,
         className: "",
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
       });
       SHIPYARDS.forEach((s) => {
         window.L.marker([s.lat, s.lon], { icon: wrenchIcon })
@@ -358,7 +361,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
   return (
     <div
       ref={mapElRef}
-    style={{ width: "100%", height: "100%", cursor: pickMode ? "crosshair" : "" }}
+    style={{ width: "100%", height: "100%", cursor: pickMode ? PICK_CURSOR : "" }}
     />
   );
 }
