@@ -103,6 +103,53 @@ const SHIPYARDS = [
   { name: "All Motor Boat & Yacht Services", address: "Gibraltar", lat: 36.1474, lon: -5.3542, phone: "+34 678 34 55 95" },
 ];
 
+// Stations de sauvetage en mer sur la zone Brest → Gibraltar : SNSM (France), Salvamento
+// Marítimo (Espagne), Instituto de Socorros a Náufragos (Portugal). Positions au niveau du
+// port/ville de rattachement (repères de référence, à vérifier avant usage opérationnel réel).
+const RESCUE_STATIONS = [
+  // France — SNSM
+  { name: "SNSM Brest", org: "SNSM", address: "Brest, France", lat: 48.3904, lon: -4.4861, phone: null },
+  { name: "SNSM Camaret-sur-Mer", org: "SNSM", address: "Camaret-sur-Mer, France", lat: 48.2807, lon: -4.5934, phone: null },
+  { name: "SNSM Douarnenez", org: "SNSM", address: "Douarnenez, France", lat: 48.0928, lon: -4.3287, phone: null },
+  { name: "SNSM Loctudy", org: "SNSM", address: "Loctudy, France", lat: 47.8375, lon: -4.1741, phone: null },
+  { name: "SNSM Concarneau", org: "SNSM", address: "Concarneau, France", lat: 47.8737, lon: -3.9187, phone: null },
+  { name: "SNSM Lorient", org: "SNSM", address: "Lorient, France", lat: 47.7482, lon: -3.3660, phone: null },
+  { name: "SNSM Belle-Île (Le Palais)", org: "SNSM", address: "Le Palais, Belle-Île-en-Mer, France", lat: 47.3467, lon: -3.1533, phone: null },
+  { name: "SNSM Le Croisic", org: "SNSM", address: "Le Croisic, France", lat: 47.2934, lon: -2.5133, phone: null },
+  { name: "SNSM Île d'Yeu", org: "SNSM", address: "Port-Joinville, Île d'Yeu, France", lat: 46.7247, lon: -2.3453, phone: null },
+  { name: "SNSM Les Sables-d'Olonne", org: "SNSM", address: "Les Sables-d'Olonne, France", lat: 46.4966, lon: -1.7836, phone: null },
+  { name: "SNSM La Rochelle", org: "SNSM", address: "La Rochelle, France", lat: 46.1591, lon: -1.1520, phone: null },
+  { name: "SNSM Royan", org: "SNSM", address: "Royan, France", lat: 45.6280, lon: -1.0280, phone: null },
+  { name: "SNSM Arcachon", org: "SNSM", address: "Arcachon, France", lat: 44.6595, lon: -1.1685, phone: null },
+  { name: "SNSM Capbreton", org: "SNSM", address: "Capbreton, France", lat: 43.6425, lon: -1.4390, phone: null },
+  { name: "SNSM Hendaye", org: "SNSM", address: "Hendaye, France", lat: 43.3728, lon: -1.7736, phone: null },
+  // Espagne — Salvamento Marítimo
+  { name: "Salvamento Marítimo Hondarribia", org: "Salvamento Marítimo", address: "Hondarribia, Espagne", lat: 43.3224, lon: -1.9812, phone: null },
+  { name: "Salvamento Marítimo Bilbao", org: "Salvamento Marítimo", address: "Bilbao, Espagne", lat: 43.3438, lon: -3.0195, phone: null },
+  { name: "Salvamento Marítimo Santander", org: "Salvamento Marítimo", address: "Santander, Espagne", lat: 43.4623, lon: -3.7900, phone: null },
+  { name: "Salvamento Marítimo Gijón", org: "Salvamento Marítimo", address: "Gijón, Espagne", lat: 43.5453, lon: -5.6615, phone: null },
+  { name: "Salvamento Marítimo Avilés", org: "Salvamento Marítimo", address: "Avilés, Espagne", lat: 43.5652, lon: -5.9249, phone: null },
+  { name: "Salvamento Marítimo Ribadeo", org: "Salvamento Marítimo", address: "Ribadeo, Espagne", lat: 43.5401, lon: -7.0402, phone: null },
+  { name: "Salvamento Marítimo A Coruña", org: "Salvamento Marítimo", address: "A Coruña, Espagne", lat: 43.3623, lon: -8.4115, phone: null },
+  { name: "Salvamento Marítimo Fisterra", org: "Salvamento Marítimo", address: "Fisterra, Espagne", lat: 42.9050, lon: -9.2652, phone: null },
+  { name: "Salvamento Marítimo Vigo", org: "Salvamento Marítimo", address: "Vigo, Espagne", lat: 42.2406, lon: -8.7207, phone: null },
+  // Portugal — Instituto de Socorros a Náufragos (ISN)
+  { name: "ISN Viana do Castelo", org: "ISN", address: "Viana do Castelo, Portugal", lat: 41.6932, lon: -8.8330, phone: null },
+  { name: "ISN Póvoa de Varzim / Vila do Conde", org: "ISN", address: "Póvoa de Varzim, Portugal", lat: 41.3806, lon: -8.7644, phone: null },
+  { name: "ISN Leixões", org: "ISN", address: "Leixões, Matosinhos, Portugal", lat: 41.1846, lon: -8.7016, phone: null },
+  { name: "ISN Aveiro", org: "ISN", address: "Aveiro, Portugal", lat: 40.6443, lon: -8.7508, phone: null },
+  { name: "ISN Figueira da Foz", org: "ISN", address: "Figueira da Foz, Portugal", lat: 40.1500, lon: -8.8667, phone: null },
+  { name: "ISN Nazaré", org: "ISN", address: "Nazaré, Portugal", lat: 39.6019, lon: -9.0704, phone: null },
+  { name: "ISN Peniche", org: "ISN", address: "Peniche, Portugal", lat: 39.3558, lon: -9.3811, phone: null },
+  { name: "ISN Cascais", org: "ISN", address: "Cascais, Portugal", lat: 38.6963, lon: -9.4215, phone: null },
+  { name: "ISN Sesimbra", org: "ISN", address: "Sesimbra, Portugal", lat: 38.4444, lon: -9.1010, phone: null },
+  { name: "ISN Sines", org: "ISN", address: "Sines, Portugal", lat: 37.9558, lon: -8.8647, phone: null },
+  { name: "ISN Sagres", org: "ISN", address: "Sagres, Portugal", lat: 37.0064, lon: -8.9412, phone: null },
+  { name: "ISN Ferragudo / Portimão", org: "ISN", address: "Portimão, Portugal", lat: 37.1233, lon: -8.5289, phone: null },
+  { name: "ISN Olhão", org: "ISN", address: "Olhão, Portugal", lat: 37.0286, lon: -7.8408, phone: null },
+  { name: "ISN Vila Real de Santo António", org: "ISN", address: "Vila Real de Santo António, Portugal", lat: 37.1936, lon: -7.4147, phone: null },
+];
+
 // --- Notifications push : clé publique VAPID (la clé privée reste côté serveur uniquement) ---
 const VAPID_PUBLIC_KEY = "BMIS8tdZkU4-Ds_en30kFg0TsZWuxFnzBFguaStsE9DGI7FhxH2IIOdzvJyph2c4KGT_ZTMFkiNnJ7GKp69oeYs";
 
@@ -272,7 +319,7 @@ const inputStyle = {
 const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23FF6B35" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23FF6B35" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23FF6B35" stroke-width="5"/></svg>') 22 22, crosshair`;
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, pickMode, onPickLocation, trails, showTrails, myBoatId }) {
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, pickMode, onPickLocation, trails, showTrails, myBoatId }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
@@ -360,10 +407,10 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       if (hasRdv) {
         const rdvDesc = `RDV · ${myConvoy.name}${myConvoy.rdvLabel ? ` · ${myConvoy.rdvLabel}` : ""}`;
         const rdvIcon = window.L.divIcon({
-          html: `<div style="background:${COLORS.green};width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #071A10;font-size:20px;">🏁</div>`,
+          html: `<div style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;font-size:36px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.7));">🏁</div>`,
           className: "",
-          iconSize: [38, 38],
-          iconAnchor: [19, 19],
+          iconSize: [42, 42],
+          iconAnchor: [21, 21],
         });
         window.L.marker([myConvoy.rdvLat, myConvoy.rdvLon], { icon: rdvIcon })
           .bindTooltip(rdvDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
@@ -374,10 +421,10 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       if (hasDest) {
         const destDesc = `Destination · ${myConvoy.name}${myConvoy.destLabel ? ` · ${myConvoy.destLabel}` : ""}`;
         const destIcon = window.L.divIcon({
-          html: `<div style="background:${COLORS.orange};width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #1A0E08;font-size:20px;">🏁</div>`,
+          html: `<div style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;font-size:36px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.7));">🏁</div>`,
           className: "",
-          iconSize: [38, 38],
-          iconAnchor: [19, 19],
+          iconSize: [42, 42],
+          iconAnchor: [21, 21],
         });
         window.L.marker([myConvoy.destLat, myConvoy.destLon], { icon: destIcon })
           .bindTooltip(destDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
@@ -420,6 +467,22 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       });
     }
 
+    if (showRescueStations) {
+      const buoyIcon = window.L.divIcon({
+        html: `<div style="background:${COLORS.orange};width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #4A2409;font-size:19px;">🛟</div>`,
+        className: "",
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+      });
+      RESCUE_STATIONS.forEach((s) => {
+        const stationDesc = `<b>${s.name}</b><br/>${s.org}<br/>${s.address}`;
+        window.L.marker([s.lat, s.lon], { icon: buoyIcon })
+          .bindTooltip(`${s.name}<br/>${s.address}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .bindPopup(stationDesc)
+          .addTo(layer);
+      });
+    }
+
     // --- Trace : simple trait de sillage par bateau (moi + les autres), comme sur un traceur de route ---
     if (showTrails && trails) {
       const othersById = {};
@@ -451,7 +514,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
           .addTo(layer);
       });
     }
-  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, trails, showTrails, myBoatId]);
+  }, [pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, trails, showTrails, myBoatId]);
 
   return (
     <div
@@ -627,6 +690,7 @@ export default function RouteDesOrques() {
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
   const [showShipyards, setShowShipyards] = useState(true);
+  const [showRescueStations, setShowRescueStations] = useState(true);
   const [showTrails, setShowTrails] = useState(true);
   const [trails, setTrails] = useState({});
   const [showConvoyForm, setShowConvoyForm] = useState(false);
@@ -1508,6 +1572,7 @@ const startPicking = (target) => {
           now={now}
           onSelectBoat={setSelectedBoat}
                 showShipyards={showShipyards}
+                showRescueStations={showRescueStations}
                 pickMode={!!pickTarget}
                 onPickLocation={handlePickLocation}
                 trails={trails}
