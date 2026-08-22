@@ -1897,11 +1897,22 @@ const startPicking = (target) => {
                 <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
                   {cvDestLat != null ? `${cvDestLat.toFixed(4)}, ${cvDestLon.toFixed(4)}` : "Coordonnées non définies"}
                 </p>
-                <button onClick={() => triggerImport("convoy-dest")}
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
-                  <Download size={12} /> Importer GPX
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => startPicking("dest")}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                    <LocateFixed size={12} /> Sur la carte
+                  </button>
+                  <button onClick={() => triggerImport("convoy-dest")}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
+                    <Download size={12} /> Importer GPX
+                  </button>
+                </div>
               </div>
+              {cvDestLat == null && (
+                <p className="text-xs" style={{ color: COLORS.orange }}>
+                  Sans coordonnées, la destination n'apparaîtra pas sur la carte — utilisez "Sur la carte" ou "Importer GPX".
+                </p>
+              )}
               <Field label="Heure d'arrivée estimée">
                 <input type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
