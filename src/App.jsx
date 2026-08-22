@@ -1,6 +1,6 @@
 import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Anchor, Navigation, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download } from "lucide-react";
+import { Anchor, Navigation, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
 
 const FONTS = `
@@ -483,9 +483,9 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       const sp = speciesInfo(a.species || "orque");
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
-      const size = isRecent ? 44 : 32;
+      const size = isRecent ? 42 : 30;
       const speciesIcon = window.L.divIcon({
-        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 7 : 4}px ${color}55;opacity:${isRecent ? 1 : 0.75};font-size:${isRecent ? 22 : 17}px;">${sp.emoji}</div>`,
+        html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-size:${isRecent ? 30 : 20}px;line-height:1;opacity:${isRecent ? 1 : 0.75};filter:drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color});">${sp.emoji}</div>`,
         className: "",
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
@@ -827,6 +827,7 @@ export default function RouteDesOrques() {
   const [alertNotes, setAlertNotes] = useState("");
   const [alertIncident, setAlertIncident] = useState(false);
   const [alertSpecies, setAlertSpecies] = useState("orque");
+  const [editingAlertId, setEditingAlertId] = useState(null);
   const [alertLat, setAlertLat] = useState(null);
   const [alertLon, setAlertLon] = useState(null);
   const [alertLocating, setAlertLocating] = useState(false);
@@ -1351,12 +1352,33 @@ if (p) {
   };
 
   const openAlertForm = () => {
+    setEditingAlertId(null);
     setAlertLat(pos?.lat ?? null);
     setAlertLon(pos?.lon ?? null);
     setAlertCount("1");
+    setAlertNotes("");
     setAlertIncident(false);
     setAlertSpecies("orque");
     setShowAlertForm(true);
+  };
+
+  const openEditAlertForm = (a) => {
+    setEditingAlertId(a.id);
+    setAlertLat(a.lat);
+    setAlertLon(a.lon);
+    setAlertCount(String(a.count));
+    setAlertNotes(a.notes || "");
+    setAlertIncident(!!a.incident);
+    setAlertSpecies(a.species || "orque");
+    setShowAlertForm(true);
+  };
+
+  const deleteAlert = async (id) => {
+    if (!window.confirm("Supprimer ce signalement ?")) return;
+    try {
+      await supabase.from("alerts").delete().eq("id", id).eq("author_id", profile.id);
+      setAlerts((prev) => prev.filter((a) => a.id !== id));
+    } catch (e) {}
   };
 
   const refreshPosition = () => {
@@ -1402,45 +1424,64 @@ if (p) {
     setSaving(true);
     try {
       const sp = speciesInfo(alertSpecies);
-      const { data, error } = await supabase
-        .from("alerts")
-        .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim(), incident: alertIncident, species: alertSpecies })
-        .select()
-        .single();
-      if (!error && data) {
-        const entry = {
-          id: data.id, authorId: data.author_id, author: data.author, boatName: data.boat_name,
-          lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, incident: !!data.incident, createdAt: new Date(data.created_at).getTime(),
-          species: data.species || alertSpecies,
-        };
-        setAlerts((prev) => [entry, ...prev].slice(0, MAX_ALERTS));
+
+      if (editingAlertId) {
+        // Modification d'un signalement existant : pas de nouvelle notification push, juste une mise à jour.
+        const { data, error } = await supabase
+          .from("alerts")
+          .update({ lat, lon, count, notes: alertNotes.trim(), incident: alertIncident, species: alertSpecies })
+          .eq("id", editingAlertId)
+          .eq("author_id", profile.id)
+          .select()
+          .single();
+        if (!error && data) {
+          setAlerts((prev) => prev.map((a) => (a.id === editingAlertId ? {
+            ...a, lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, incident: !!data.incident, species: data.species || alertSpecies,
+          } : a)));
+        }
+      } else {
+        const { data, error } = await supabase
+          .from("alerts")
+          .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim(), incident: alertIncident, species: alertSpecies })
+          .select()
+          .single();
+        if (!error && data) {
+          const entry = {
+            id: data.id, authorId: data.author_id, author: data.author, boatName: data.boat_name,
+            lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, incident: !!data.incident, createdAt: new Date(data.created_at).getTime(),
+            species: data.species || alertSpecies,
+          };
+          setAlerts((prev) => [entry, ...prev].slice(0, MAX_ALERTS));
+        }
+
+        const animalLabel = count > 1 ? sp.labelPlural : sp.label.toLowerCase();
+        const myConvoyNow = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
+        const memberIds = myConvoyNow ? myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
+        if (memberIds.length) {
+          sendPush(memberIds, `${sp.emoji} ${sp.pushTitle}`, `${profile.pseudo} a signalé ${count} ${animalLabel} près de votre convoi`, "/");
+        }
+
+        // Notifie aussi tous les autres bateaux dont le rayon d'alerte personnalisé couvre
+        // la position du signalement (rayon "illimité" = null → toujours notifié).
+        const memberIdSet = new Set(memberIds);
+        const nearbyIds = Object.values(boats)
+          .filter((b) => b.id !== profile.id && !memberIdSet.has(b.id) && b.lat != null && b.lon != null)
+          .filter((b) => (b.alertRadiusKm == null ? true : distanceKm(lat, lon, b.lat, b.lon) <= b.alertRadiusKm))
+          .map((b) => b.id);
+        if (nearbyIds.length) {
+          sendPush(nearbyIds, `${sp.emoji} ${sp.pushTitle}`, `${profile.pseudo} a signalé ${count} ${animalLabel} dans ta zone de navigation`, "/");
+        }
       }
+
       setAlertCount("");
       setAlertNotes("");
       setAlertIncident(false);
       setAlertSpecies("orque");
+      setEditingAlertId(null);
       setAlertLat(null);
       setAlertLon(null);
       setShowAlertForm(false);
       setTab("alerts");
-
-      const animalLabel = count > 1 ? sp.labelPlural : sp.label.toLowerCase();
-      const myConvoyNow = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
-      const memberIds = myConvoyNow ? myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
-      if (memberIds.length) {
-        sendPush(memberIds, `${sp.emoji} ${sp.pushTitle}`, `${profile.pseudo} a signalé ${count} ${animalLabel} près de votre convoi`, "/");
-      }
-
-      // Notifie aussi tous les autres bateaux dont le rayon d'alerte personnalisé couvre
-      // la position du signalement (rayon "illimité" = null → toujours notifié).
-      const memberIdSet = new Set(memberIds);
-      const nearbyIds = Object.values(boats)
-        .filter((b) => b.id !== profile.id && !memberIdSet.has(b.id) && b.lat != null && b.lon != null)
-        .filter((b) => (b.alertRadiusKm == null ? true : distanceKm(lat, lon, b.lat, b.lon) <= b.alertRadiusKm))
-        .map((b) => b.id);
-      if (nearbyIds.length) {
-        sendPush(nearbyIds, `${sp.emoji} ${sp.pushTitle}`, `${profile.pseudo} a signalé ${count} ${animalLabel} dans ta zone de navigation`, "/");
-      }
     } catch (e) {}
     setSaving(false);
   };
@@ -2118,6 +2159,16 @@ const startPicking = (target) => {
                                     <button onClick={(e) => { e.stopPropagation(); exportAlertGPX(a); }} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
                                       <Download size={14} />
                                     </button>
+                                    {a.authorId === profile.id && (
+                                      <>
+                                        <button onClick={(e) => { e.stopPropagation(); openEditAlertForm(a); }} title="Modifier ce signalement" style={{ color: COLORS.muted }}>
+                                          <Pencil size={14} />
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteAlert(a.id); }} title="Supprimer ce signalement" style={{ color: COLORS.orange }}>
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </Panel>
@@ -2372,7 +2423,7 @@ const startPicking = (target) => {
         <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }}>
           <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>SIGNALER UNE OBSERVATION</h3>
+              <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>{editingAlertId ? "MODIFIER L'OBSERVATION" : "SIGNALER UNE OBSERVATION"}</h3>
               <button onClick={() => setShowAlertForm(false)}><X size={18} style={{ color: COLORS.muted }} /></button>
             </div>
             <Field label="Espèce observée">
@@ -2478,7 +2529,7 @@ const startPicking = (target) => {
             <button onClick={addAlert} disabled={alertLat == null || alertLon == null}
               className="w-full py-2.5 rounded font-medium text-sm mt-3"
               style={{ background: COLORS.orange, color: "#1A0E08", opacity: alertLat == null || alertLon == null ? 0.5 : 1 }}>
-              Publier le signalement
+              {editingAlertId ? "Enregistrer les modifications" : "Publier le signalement"}
             </button>
           </div>
         </div>
