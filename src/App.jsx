@@ -422,6 +422,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
   const onPickLocationRef = useRef(onPickLocation);
   const alertMarkersRef = useRef({});
   const baseLayerRef = useRef(null);
+  const labelsLayerRef = useRef(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
 
@@ -455,6 +456,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     const map = mapRef.current;
     if (!map || !window.L) return;
     if (baseLayerRef.current) map.removeLayer(baseLayerRef.current);
+    if (labelsLayerRef.current) { map.removeLayer(labelsLayerRef.current); labelsLayerRef.current = null; }
     const newBase = mapStyle === "satellite"
       ? window.L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
           maxZoom: 18,
@@ -468,6 +470,17 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         });
     newBase.addTo(map);
     baseLayerRef.current = newBase;
+
+    if (mapStyle === "satellite") {
+      // Superposition des noms de villes/frontières/routes par-dessus l'imagerie satellite brute
+      // (qui n'a aucun repère écrit), sans quoi la carte satellite est illisible pour se situer.
+      const labels = window.L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 18, zIndex: 1.5, attribution: "Labels &copy; Esri" }
+      );
+      labels.addTo(map);
+      labelsLayerRef.current = labels;
+    }
   }, [mapStyle]);
 
   useEffect(() => {
