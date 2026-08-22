@@ -287,7 +287,13 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       }
 
       if (hasDest) {
-        window.L.marker([myConvoy.destLat, myConvoy.destLon])
+        const destIcon = window.L.divIcon({
+          html: `<div style="background:${COLORS.orange};width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #1A0E08;font-size:13px;">🏁</div>`,
+          className: "",
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+        window.L.marker([myConvoy.destLat, myConvoy.destLon], { icon: destIcon })
           .bindPopup(`Destination · ${myConvoy.name}${myConvoy.destLabel ? ` · ${myConvoy.destLabel}` : ""}`)
           .addTo(layer);
       }
