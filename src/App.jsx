@@ -80,11 +80,38 @@ function fmtDist(km, unit) {
   return unit === "nm" ? `${(km * KM_TO_NM).toFixed(1)} nm` : `${km.toFixed(1)} km`;
 }
 
-// Sources officielles pour l'historique des interactions orques hors signalements de la communauté
-const OFFICIAL_ORCA_SOURCES = [
-  { label: "GTOA / Orca Ibérica — Groupe de Travail Orques Atlantique", url: "https://www.orcaiberica.org/fr" },
-  { label: "Cruising Association — Signaler une interaction", url: "https://www.theca.org.uk/orcas/interaction-report-form" },
-];
+// Sources scientifiques officielles pour l'historique des observations, par espèce, hors signalements
+// de la communauté — organismes de recherche/associations qui font autorité et sollicitent activement
+// les remontées des plaisanciers (vérifié — voir recherche du 22/08/2026).
+const OFFICIAL_SPECIES_SOURCES = {
+  orque: [
+    { label: "GTOA / Orca Ibérica — Groupe de Travail Orques Atlantique", url: "https://www.orcaiberica.org/fr" },
+    { label: "Cruising Association — Signaler une interaction", url: "https://www.theca.org.uk/orcas/interaction-report-form" },
+  ],
+  dauphin: [
+    { label: "PELAGIS (CNRS/La Rochelle) — Signaler une observation en mer", url: "https://www.observatoire-pelagis.cnrs.fr/signaler-une-observation/" },
+    { label: "CEMMA — Coordinadora para o Estudo dos Mamíferos Mariños (Galice)", url: "https://www.cemma.org/" },
+  ],
+  tortue: [
+    { label: "CESTM — Centre d'Études et de Soins pour les Tortues Marines (Aquarium La Rochelle)", url: "https://www.aquarium-larochelle.com/en/preserve/study-and-care-centre-for-marine-turtles/reportings/" },
+    { label: "Rede de Arrojamentos do Algarve (RAAlg) — Portugal", url: "https://www.raalg.pt/" },
+  ],
+};
+
+// Numéros à appeler en cas d'échouage ou d'animal marin en détresse (distinct des secours en mer/humains,
+// voir RESCUE_STATIONS) — vérifié par pays pour dauphins/tortues (recherche du 22/08/2026).
+const STRANDING_CONTACTS = {
+  dauphin: [
+    { zone: "France", phone: "05 46 44 99 10 (PELAGIS, 7j/7)" },
+    { zone: "Espagne", phone: "112" },
+    { zone: "Portugal", phone: "+351 968 688 233 (RAAlg, Algarve)" },
+  ],
+  tortue: [
+    { zone: "France", phone: "05 46 34 00 00 (CESTM, 7j/7)" },
+    { zone: "Espagne", phone: "112" },
+    { zone: "Portugal", phone: "+351 968 688 233 (RAAlg, Algarve)" },
+  ],
+};
 
 // Catalogue des espèces marines observables et signalables sur la carte (au-delà des orques) :
 // utile pour les plaisanciers (comportement à adopter, curiosité) sans lien avec le risque incident.
@@ -632,7 +659,7 @@ const TRANSLATIONS = {
     onboardingDisclaimer: "Ton pseudo, ton bateau et ta position sont visibles par les autres plaisanciers connectés à cette appli.",
     tabCarte: "Carte",
     tabConvois: "Convois",
-    tabAlerts: "Alertes",
+    tabAlerts: "Observations",
     tabChat: "Chat",
     tabProfile: "Moi",
     activeLabel: (n) => `${n} actif${n > 1 ? "s" : ""}`,
@@ -641,7 +668,7 @@ const TRANSLATIONS = {
     noRecentAlerts: "Aucune observation signalée récemment.",
     noHistoryAlerts: "Aucun signalement dans l'historique pour l'instant.",
     officialSourcesTitle: "Sources officielles",
-    officialSourcesDesc: "Pour les données antérieures et les statistiques complètes d'interactions orques :",
+    officialSourcesDesc: "Pour les données antérieures et les statistiques complètes par espèce :",
   },
   en: {
     loginTagline: "Sign in with a magic link — no password to remember.",
@@ -661,7 +688,7 @@ const TRANSLATIONS = {
     onboardingDisclaimer: "Your nickname, boat, and position are visible to other sailors connected to this app.",
     tabCarte: "Map",
     tabConvois: "Convoys",
-    tabAlerts: "Alerts",
+    tabAlerts: "Observations",
     tabChat: "Chat",
     tabProfile: "Me",
     activeLabel: (n) => `${n} active`,
@@ -670,7 +697,7 @@ const TRANSLATIONS = {
     noRecentAlerts: "No sightings reported recently.",
     noHistoryAlerts: "No reports in the history yet.",
     officialSourcesTitle: "Official sources",
-    officialSourcesDesc: "For past data and full orca interaction statistics:",
+    officialSourcesDesc: "For past data and full statistics per species:",
   },
   es: {
     loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
@@ -690,7 +717,7 @@ const TRANSLATIONS = {
     onboardingDisclaimer: "Tu apodo, barco y posición son visibles para otros navegantes conectados a esta app.",
     tabCarte: "Mapa",
     tabConvois: "Convoyes",
-    tabAlerts: "Alertas",
+    tabAlerts: "Observaciones",
     tabChat: "Chat",
     tabProfile: "Yo",
     activeLabel: (n) => `${n} activo${n > 1 ? "s" : ""}`,
@@ -699,7 +726,7 @@ const TRANSLATIONS = {
     noRecentAlerts: "No se han señalado avistamientos recientemente.",
     noHistoryAlerts: "Aún no hay reportes en el historial.",
     officialSourcesTitle: "Fuentes oficiales",
-    officialSourcesDesc: "Para datos anteriores y estadísticas completas de interacciones con orcas:",
+    officialSourcesDesc: "Para datos anteriores y estadísticas completas por especie:",
   },
   pt: {
     loginTagline: "Entrar com link mágico — sem senha para lembrar.",
@@ -719,7 +746,7 @@ const TRANSLATIONS = {
     onboardingDisclaimer: "O teu apelido, barco e posição ficam visíveis para outros navegadores ligados a esta app.",
     tabCarte: "Mapa",
     tabConvois: "Comboios",
-    tabAlerts: "Alertas",
+    tabAlerts: "Observações",
     tabChat: "Chat",
     tabProfile: "Eu",
     activeLabel: (n) => `${n} ativo${n > 1 ? "s" : ""}`,
@@ -728,7 +755,7 @@ const TRANSLATIONS = {
     noRecentAlerts: "Nenhum avistamento reportado recentemente.",
     noHistoryAlerts: "Ainda não há relatos no histórico.",
     officialSourcesTitle: "Fontes oficiais",
-    officialSourcesDesc: "Para dados anteriores e estatísticas completas de interações com orcas:",
+    officialSourcesDesc: "Para dados anteriores e estatísticas completas por espécie:",
   },
 };
 
@@ -2103,14 +2130,21 @@ const startPicking = (target) => {
                           <Panel className="p-4 mt-3">
                             <p className="text-xs uppercase tracking-wider mb-1.5" style={{ color: COLORS.muted }}>{t.officialSourcesTitle}</p>
                             <p className="text-sm mb-2" style={{ color: COLORS.text }}>{t.officialSourcesDesc}</p>
-                            <div className="space-y-1.5">
-                              {OFFICIAL_ORCA_SOURCES.map((s) => (
-                                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
-                                  className="block text-sm underline" style={{ color: COLORS.cyan }}>
-                                  {s.label}
-                                </a>
-                              ))}
-                            </div>
+                            {SPECIES_OPTIONS.filter((sp) => visibleSpecies[sp.key] !== false).map((sp) => (
+                              <div key={sp.key} className="mb-2.5 last:mb-0">
+                                <p className="text-xs mb-1 flex items-center gap-1.5" style={{ color: COLORS.muted }}>
+                                  <span>{sp.emoji}</span> {sp.labelPlural}
+                                </p>
+                                <div className="space-y-1.5">
+                                  {(OFFICIAL_SPECIES_SOURCES[sp.key] || []).map((s) => (
+                                    <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                                      className="block text-sm underline" style={{ color: COLORS.cyan }}>
+                                      {s.label}
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
                           </Panel>
                         )}
                       </>
@@ -2328,7 +2362,7 @@ const startPicking = (target) => {
        <div className="flex" style={{ gap: 10 }}>
           <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
           <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
-          <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><AlertTriangle size={17} /></IconBtn>
+          <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><Waves size={17} /></IconBtn>
           <IconBtn onClick={() => setTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={17} /></IconBtn>
           <IconBtn onClick={() => setTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={17} /></IconBtn>
         </div>
@@ -2356,6 +2390,14 @@ const startPicking = (target) => {
                 ))}
               </div>
             </Field>
+            {STRANDING_CONTACTS[alertSpecies] && (
+              <div className="mt-2 p-2.5 rounded text-xs" style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}`, color: COLORS.muted }}>
+                <p className="mb-1" style={{ color: COLORS.text }}>Animal échoué ou en détresse ? Appeler directement :</p>
+                {STRANDING_CONTACTS[alertSpecies].map((c) => (
+                  <p key={c.zone}>{c.zone} : <span style={{ color: COLORS.cyan }}>{c.phone}</span></p>
+                ))}
+              </div>
+            )}
             <div className="h-3" />
             <Field label="Nombre d'individus">
               <div className="flex items-center gap-2">
