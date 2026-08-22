@@ -2070,7 +2070,7 @@ const startPicking = (target) => {
       {/* Bandeau de filtre par famille de marqueurs (chantiers navals / stations de secours / élevages
           de poissons), à gauche de la carte, uniquement sur l'onglet Carte */}
       {tab === "carte" && (
-        <div className="absolute z-[1150] flex flex-col" style={{ top: 116, left: 12, gap: 6 }}>
+        <div className="absolute z-[1150] flex flex-col" style={{ top: 150, left: 12, gap: 10 }}>
           {[
             { key: "shipyards", emoji: "🛠️", label: "chantiers navals", active: showShipyards, toggle: () => setShowShipyards((v) => !v) },
             { key: "rescue", emoji: "🛟", label: "stations de secours", active: showRescueStations, toggle: () => setShowRescueStations((v) => !v) },
@@ -2079,14 +2079,15 @@ const startPicking = (target) => {
             <button key={layer.key}
               onClick={layer.toggle}
               title={`${layer.active ? "Masquer" : "Afficher"} les ${layer.label}`}
-              className="text-base w-9 h-9 rounded-full shadow-lg flex items-center justify-center shrink-0"
+              className="rounded-full shadow-lg flex items-center justify-center shrink-0"
               style={{
+                width: 64, height: 64,
                 background: layer.active ? COLORS.cyanDim : "rgba(18,40,63,0.92)",
                 backdropFilter: "blur(12px)",
-                border: `1px solid ${layer.active ? COLORS.cyanDim : COLORS.border}`,
+                border: `2px solid ${layer.active ? COLORS.cyanDim : COLORS.border}`,
                 opacity: layer.active ? 1 : 0.5,
               }}>
-              <span>{layer.emoji}</span>
+              <span style={{ fontSize: 32, lineHeight: 1, display: "block" }}>{layer.emoji}</span>
             </button>
           ))}
         </div>
