@@ -1682,15 +1682,34 @@ const startPicking = (target) => {
 
   // Géocodage (Nominatim/OpenStreetMap, gratuit, sans clé) pour proposer des lieux au fil de la
   // saisie dans les champs RDV/destination du formulaire de convoi. Recherche biaisée sur la zone
-  // Brest → Gibraltar (viewbox non stricte) pour prioriser les ports pertinents pour la route.
+  // Brest → Gibraltar (viewbox non stricte), et priorisée vers les ports de plaisance/installations
+  // portuaires (deux requêtes en parallèle : le texte tel quel + le texte préfixé "marina", puis
+  // les résultats tagués port/marina côté OSM remontent en tête de liste).
+  const PORT_OSM_TYPES = new Set(["marina", "harbour", "port", "yacht_club", "slipway", "dock", "boatyard"]);
   const geocodeSearch = async (query) => {
-    if (!query || query.trim().length < 3) return [];
+    const q = query.trim();
+    if (!q || q.length < 3) return [];
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=5&addressdetails=0&viewbox=-10,50,0,34&bounded=0`;
-      const res = await fetch(url, { headers: { Accept: "application/json" } });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data || []).map((d) => ({ label: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon) }));
+      const fetchOne = async (text) => {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=6&addressdetails=0&viewbox=-10,50,0,34&bounded=0`;
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        if (!res.ok) return [];
+        return (await res.json()) || [];
+      };
+      const [marinaResults, plainResults] = await Promise.all([fetchOne(`marina ${q}`), fetchOne(q)]);
+      const seen = new Set();
+      const merged = [];
+      [...marinaResults, ...plainResults].forEach((d) => {
+        const key = `${Math.round(parseFloat(d.lat) * 500)},${Math.round(parseFloat(d.lon) * 500)}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        merged.push(d);
+      });
+      // Les vrais points portuaires/marinas (tag OSM) remontent en tête, le reste (villes, lieux-dits) suit.
+      merged.sort((a, b) => (PORT_OSM_TYPES.has(a.type) ? 0 : 1) - (PORT_OSM_TYPES.has(b.type) ? 0 : 1));
+      return merged.slice(0, 6).map((d) => ({
+        label: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon), isPort: PORT_OSM_TYPES.has(d.type),
+      }));
     } catch (e) {
       return [];
     }
@@ -2729,9 +2748,10 @@ const startPicking = (target) => {
                       style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
                       {rdvSuggestions.map((s, i) => (
                         <button key={i} type="button" onClick={() => pickRdvSuggestion(s)}
-                          className="w-full text-left px-3 py-2 text-xs"
+                          className="w-full text-left px-3 py-2 text-xs flex items-start gap-1.5"
                           style={{ color: COLORS.text, borderBottom: i < rdvSuggestions.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
-                          {s.label}
+                          {s.isPort && <Anchor size={12} className="shrink-0 mt-0.5" style={{ color: COLORS.cyan }} />}
+                          <span>{s.label}</span>
                         </button>
                       ))}
                     </div>
@@ -2776,9 +2796,10 @@ const startPicking = (target) => {
                       style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
                       {destSuggestions.map((s, i) => (
                         <button key={i} type="button" onClick={() => pickDestSuggestion(s)}
-                          className="w-full text-left px-3 py-2 text-xs"
+                          className="w-full text-left px-3 py-2 text-xs flex items-start gap-1.5"
                           style={{ color: COLORS.text, borderBottom: i < destSuggestions.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
-                          {s.label}
+                          {s.isPort && <Anchor size={12} className="shrink-0 mt-0.5" style={{ color: COLORS.cyan }} />}
+                          <span>{s.label}</span>
                         </button>
                       ))}
                     </div>
