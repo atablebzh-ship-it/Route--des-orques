@@ -942,6 +942,14 @@ export default function RouteDesOrques() {
   const cvDepartureRef = useRef(null);
   const cvEtaRef = useRef(null);
 
+  // Suggestions d'adresse (géocodage) pour les champs RDV/destination du formulaire de convoi.
+  const [rdvSuggestions, setRdvSuggestions] = useState([]);
+  const [destSuggestions, setDestSuggestions] = useState([]);
+  const [rdvSuggestLoading, setRdvSuggestLoading] = useState(false);
+  const [destSuggestLoading, setDestSuggestLoading] = useState(false);
+  const rdvGeoTimer = useRef(null);
+  const destGeoTimer = useRef(null);
+
   const [showImportPicker, setShowImportPicker] = useState(false);
   const [importedWaypoints, setImportedWaypoints] = useState([]);
   const [importTarget, setImportTarget] = useState(null);
@@ -1667,7 +1675,63 @@ const startPicking = (target) => {
 };const openConvoyForm = () => {
     setCvRdvLat(pos?.lat ?? null);
     setCvRdvLon(pos?.lon ?? null);
+    setRdvSuggestions([]);
+    setDestSuggestions([]);
     setShowConvoyForm(true);
+  };
+
+  // Géocodage (Nominatim/OpenStreetMap, gratuit, sans clé) pour proposer des lieux au fil de la
+  // saisie dans les champs RDV/destination du formulaire de convoi. Recherche biaisée sur la zone
+  // Brest → Gibraltar (viewbox non stricte) pour prioriser les ports pertinents pour la route.
+  const geocodeSearch = async (query) => {
+    if (!query || query.trim().length < 3) return [];
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=5&addressdetails=0&viewbox=-10,50,0,34&bounded=0`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data || []).map((d) => ({ label: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon) }));
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const onRdvTextChange = (value) => {
+    setCvRdv(value);
+    if (rdvGeoTimer.current) clearTimeout(rdvGeoTimer.current);
+    if (value.trim().length < 3) { setRdvSuggestions([]); return; }
+    setRdvSuggestLoading(true);
+    rdvGeoTimer.current = setTimeout(async () => {
+      const results = await geocodeSearch(value);
+      setRdvSuggestions(results);
+      setRdvSuggestLoading(false);
+    }, 450);
+  };
+
+  const onDestTextChange = (value) => {
+    setCvDest(value);
+    if (destGeoTimer.current) clearTimeout(destGeoTimer.current);
+    if (value.trim().length < 3) { setDestSuggestions([]); return; }
+    setDestSuggestLoading(true);
+    destGeoTimer.current = setTimeout(async () => {
+      const results = await geocodeSearch(value);
+      setDestSuggestions(results);
+      setDestSuggestLoading(false);
+    }, 450);
+  };
+
+  const pickRdvSuggestion = (s) => {
+    setCvRdv(s.label);
+    setCvRdvLat(s.lat);
+    setCvRdvLon(s.lon);
+    setRdvSuggestions([]);
+  };
+
+  const pickDestSuggestion = (s) => {
+    setCvDest(s.label);
+    setCvDestLat(s.lat);
+    setCvDestLon(s.lon);
+    setDestSuggestions([]);
   };
 
   const requestJoin = async (convoyId) => {
@@ -2645,7 +2709,7 @@ const startPicking = (target) => {
           <div className="w-full max-w-sm rounded-t-xl p-5 overflow-y-auto" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, maxHeight: "85vh" }}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>CRÉER UN CONVOI</h3>
-              <button onClick={() => setShowConvoyForm(false)}><X size={18} style={{ color: COLORS.muted }} /></button>
+              <button onClick={() => { setShowConvoyForm(false); setRdvSuggestions([]); setDestSuggestions([]); }}><X size={18} style={{ color: COLORS.muted }} /></button>
             </div>
             <div className="space-y-3">
               <Field label="Nom du convoi">
@@ -2653,8 +2717,26 @@ const startPicking = (target) => {
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
               </Field>
               <Field label="Point de rendez-vous (description)">
-                <input value={cvRdv} onChange={(e) => setCvRdv(e.target.value)} placeholder="Ex. Sortie du port, bouée verte"
-                  className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                <div className="relative">
+                  <input value={cvRdv} onChange={(e) => onRdvTextChange(e.target.value)} placeholder="Ex. Bilbao, ou sortie du port, bouée verte"
+                    autoComplete="off"
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                  {rdvSuggestLoading && (
+                    <p className="text-xs mt-1" style={{ color: COLORS.muted }}>Recherche…</p>
+                  )}
+                  {rdvSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 z-10 mt-1 rounded overflow-hidden shadow-lg"
+                      style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
+                      {rdvSuggestions.map((s, i) => (
+                        <button key={i} type="button" onClick={() => pickRdvSuggestion(s)}
+                          className="w-full text-left px-3 py-2 text-xs"
+                          style={{ color: COLORS.text, borderBottom: i < rdvSuggestions.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Field>
               <div className="flex items-center justify-between">
   <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
@@ -2681,8 +2763,27 @@ const startPicking = (target) => {
                   </button>
                 </div>
               </Field>
-              <Field label="Destination"><input value={cvDest} onChange={(e) => setCvDest(e.target.value)} placeholder="Ex. Port de Saint-Jean-de-Luz"
-                  className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+              <Field label="Destination">
+                <div className="relative">
+                  <input value={cvDest} onChange={(e) => onDestTextChange(e.target.value)} placeholder="Ex. Port de Saint-Jean-de-Luz"
+                    autoComplete="off"
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                  {destSuggestLoading && (
+                    <p className="text-xs mt-1" style={{ color: COLORS.muted }}>Recherche…</p>
+                  )}
+                  {destSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 z-10 mt-1 rounded overflow-hidden shadow-lg"
+                      style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
+                      {destSuggestions.map((s, i) => (
+                        <button key={i} type="button" onClick={() => pickDestSuggestion(s)}
+                          className="w-full text-left px-3 py-2 text-xs"
+                          style={{ color: COLORS.text, borderBottom: i < destSuggestions.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Field>
               <div className="flex items-center justify-between">
                 <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
