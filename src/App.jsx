@@ -1,6 +1,6 @@
 import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Anchor, Navigation, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil } from "lucide-react";
+import { Anchor, Navigation, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
 
 const FONTS = `
@@ -2026,51 +2026,21 @@ const startPicking = (target) => {
               />
       </div>
 
-      {/* Sélecteur de fond de carte : rue / satellite (uniquement sur l'onglet Carte) */}
+      {/* Sélecteur de fond de carte : un seul bouton style Google Maps (carte claire + libellé du
+          mode vers lequel on bascule), plus visible que l'ancienne paire de pastilles sombres. */}
       {tab === "carte" && (
-        <div className="absolute z-[1150] flex" style={{ top: 72, right: 12, gap: 6 }}>
-          {[["street", "Carte"], ["satellite", "Satellite"]].map(([val, label]) => (
-            <button key={val} onClick={() => setMapStyle(val)}
-              className="text-xs px-3 py-1.5 rounded-full shadow-lg font-medium"
-              style={{
-                background: mapStyle === val ? COLORS.orangeDim : "rgba(18,40,63,0.92)",
-                backdropFilter: "blur(12px)",
-                color: mapStyle === val ? COLORS.orange : COLORS.muted,
-                border: `1px solid ${mapStyle === val ? COLORS.orangeDim : COLORS.border}`,
-              }}>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Bandeau de filtre par espèce observée (orques / dauphins / baleines / phoques / tortues), uniquement sur l'onglet Carte */}
-      {tab === "carte" && (
-        <div className="absolute z-[1150] flex flex-wrap justify-end" style={{ top: 116, right: 12, left: 12, gap: 6 }}>
-          {SPECIES_OPTIONS.map((sp) => {
-            const active = visibleSpecies[sp.key] !== false;
-            return (
-              <button key={sp.key}
-                onClick={() => setVisibleSpecies((prev) => ({ ...prev, [sp.key]: !active }))}
-                title={`${active ? "Masquer" : "Afficher"} les ${sp.labelPlural}`}
-                className="text-base w-9 h-9 rounded-full shadow-lg flex items-center justify-center shrink-0"
-                style={{
-                  background: active ? COLORS.orangeDim : "rgba(18,40,63,0.92)",
-                  backdropFilter: "blur(12px)",
-                  border: `1px solid ${active ? COLORS.orangeDim : COLORS.border}`,
-                  opacity: active ? 1 : 0.5,
-                }}>
-                <span>{sp.emoji}</span>
-              </button>
-            );
-          })}
-        </div>
+        <button onClick={() => setMapStyle(mapStyle === "satellite" ? "street" : "satellite")}
+          className="absolute z-[1150] flex items-center gap-2 px-3.5 py-2.5 rounded-lg shadow-lg font-medium text-sm"
+          style={{ top: 72, right: 12, background: "#FFFFFF", color: "#1A1A1A", border: "1px solid rgba(0,0,0,0.15)" }}>
+          <Layers size={18} />
+          {mapStyle === "satellite" ? "Carte" : "Satellite"}
+        </button>
       )}
 
       {/* Bandeau de filtre par famille de marqueurs (chantiers navals / stations de secours / élevages
-          de poissons), à gauche de la carte, uniquement sur l'onglet Carte */}
+          de poissons), à gauche de la carte, centré verticalement, uniquement sur l'onglet Carte */}
       {tab === "carte" && (
-        <div className="absolute z-[1150] flex flex-col" style={{ top: 150, left: 12, gap: 10 }}>
+        <div className="absolute z-[1150] flex flex-col" style={{ top: "50%", left: 12, transform: "translateY(-50%)", gap: 10 }}>
           {[
             { key: "shipyards", emoji: "🛠️", label: "chantiers navals", active: showShipyards, toggle: () => setShowShipyards((v) => !v) },
             { key: "rescue", emoji: "🛟", label: "stations de secours", active: showRescueStations, toggle: () => setShowRescueStations((v) => !v) },
