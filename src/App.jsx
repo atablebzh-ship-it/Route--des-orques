@@ -92,6 +92,13 @@ const OFFICIAL_SPECIES_SOURCES = {
     { label: "PELAGIS (CNRS/La Rochelle) — Signaler une observation en mer", url: "https://www.observatoire-pelagis.cnrs.fr/signaler-une-observation/" },
     { label: "CEMMA — Coordinadora para o Estudo dos Mamíferos Mariños (Galice)", url: "https://www.cemma.org/" },
   ],
+  baleine: [
+    { label: "PELAGIS (CNRS/La Rochelle) — Signaler une observation en mer (grands cétacés)", url: "https://www.observatoire-pelagis.cnrs.fr/signaler-une-observation/" },
+    { label: "CEMMA — Coordinadora para o Estudo dos Mamíferos Mariños (Galice)", url: "https://www.cemma.org/" },
+  ],
+  phoque: [
+    { label: "PELAGIS (CNRS/La Rochelle) — Réseau national échouages (phoques inclus)", url: "https://www.observatoire-pelagis.cnrs.fr/echouages/signaler-un-echouage/" },
+  ],
   tortue: [
     { label: "CESTM — Centre d'Études et de Soins pour les Tortues Marines (Aquarium La Rochelle)", url: "https://www.aquarium-larochelle.com/en/preserve/study-and-care-centre-for-marine-turtles/reportings/" },
     { label: "Rede de Arrojamentos do Algarve (RAAlg) — Portugal", url: "https://www.raalg.pt/" },
@@ -102,6 +109,16 @@ const OFFICIAL_SPECIES_SOURCES = {
 // voir RESCUE_STATIONS) — vérifié par pays pour dauphins/tortues (recherche du 22/08/2026).
 const STRANDING_CONTACTS = {
   dauphin: [
+    { zone: "France", phone: "05 46 44 99 10 (PELAGIS, 7j/7)" },
+    { zone: "Espagne", phone: "112" },
+    { zone: "Portugal", phone: "+351 968 688 233 (RAAlg, Algarve)" },
+  ],
+  baleine: [
+    { zone: "France", phone: "05 46 44 99 10 (PELAGIS, 7j/7)" },
+    { zone: "Espagne", phone: "112" },
+    { zone: "Portugal", phone: "+351 968 688 233 (RAAlg, Algarve)" },
+  ],
+  phoque: [
     { zone: "France", phone: "05 46 44 99 10 (PELAGIS, 7j/7)" },
     { zone: "Espagne", phone: "112" },
     { zone: "Portugal", phone: "+351 968 688 233 (RAAlg, Algarve)" },
@@ -118,6 +135,8 @@ const STRANDING_CONTACTS = {
 const SPECIES_OPTIONS = [
   { key: "orque", label: "Orque", labelPlural: "orques", emoji: "🐋", pushTitle: "Orques signalées" },
   { key: "dauphin", label: "Dauphin", labelPlural: "dauphins", emoji: "🐬", pushTitle: "Dauphins signalés" },
+  { key: "baleine", label: "Baleine / rorqual", labelPlural: "baleines", emoji: "🐳", pushTitle: "Baleines signalées" },
+  { key: "phoque", label: "Phoque", labelPlural: "phoques", emoji: "🦭", pushTitle: "Phoques signalés" },
   { key: "tortue", label: "Tortue marine", labelPlural: "tortues", emoji: "🐢", pushTitle: "Tortues signalées" },
 ];
 function speciesInfo(key) {
@@ -1955,25 +1974,23 @@ const startPicking = (target) => {
         </div>
       )}
 
-      {/* Bandeau de filtre par espèce observée (orques / dauphins / tortues), uniquement sur l'onglet Carte */}
+      {/* Bandeau de filtre par espèce observée (orques / dauphins / baleines / phoques / tortues), uniquement sur l'onglet Carte */}
       {tab === "carte" && (
-        <div className="absolute z-[1150] flex" style={{ top: 116, right: 12, gap: 6 }}>
+        <div className="absolute z-[1150] flex flex-wrap justify-end" style={{ top: 116, right: 12, left: 12, gap: 6 }}>
           {SPECIES_OPTIONS.map((sp) => {
             const active = visibleSpecies[sp.key] !== false;
             return (
               <button key={sp.key}
                 onClick={() => setVisibleSpecies((prev) => ({ ...prev, [sp.key]: !active }))}
                 title={`${active ? "Masquer" : "Afficher"} les ${sp.labelPlural}`}
-                className="text-xs px-2.5 py-1.5 rounded-full shadow-lg font-medium flex items-center gap-1"
+                className="text-base w-9 h-9 rounded-full shadow-lg flex items-center justify-center shrink-0"
                 style={{
                   background: active ? COLORS.orangeDim : "rgba(18,40,63,0.92)",
                   backdropFilter: "blur(12px)",
-                  color: active ? COLORS.orange : COLORS.muted,
                   border: `1px solid ${active ? COLORS.orangeDim : COLORS.border}`,
-                  opacity: active ? 1 : 0.6,
+                  opacity: active ? 1 : 0.5,
                 }}>
                 <span>{sp.emoji}</span>
-                <span>{sp.labelPlural}</span>
               </button>
             );
           })}
@@ -2433,16 +2450,17 @@ const startPicking = (target) => {
               <button onClick={() => setShowAlertForm(false)}><X size={18} style={{ color: COLORS.muted }} /></button>
             </div>
             <Field label="Espèce observée">
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {SPECIES_OPTIONS.map((sp) => (
                   <button key={sp.key} type="button" onClick={() => setAlertSpecies(sp.key)}
-                    className="flex-1 py-2 rounded text-sm font-medium flex items-center justify-center gap-1.5"
+                    className="py-2 px-1 rounded text-xs font-medium flex flex-col items-center justify-center gap-1"
                     style={{
                       background: alertSpecies === sp.key ? COLORS.orangeDim : "transparent",
                       color: alertSpecies === sp.key ? COLORS.orange : COLORS.muted,
                       border: `1px solid ${alertSpecies === sp.key ? COLORS.orangeDim : COLORS.border}`,
                     }}>
-                    <span>{sp.emoji}</span> {sp.label}
+                    <span style={{ fontSize: 18 }}>{sp.emoji}</span>
+                    <span className="text-center leading-tight">{sp.label}</span>
                   </button>
                 ))}
               </div>
