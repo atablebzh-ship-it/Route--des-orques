@@ -548,9 +548,16 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       const sp = speciesInfo(a.species || "orque");
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
-      const size = isRecent ? 42 : 30;
+      // Les orques restent l'espèce phare de l'appli : marqueur plus grand et rendu noir et blanc
+      // (comme leur robe réelle), pour rester repérable en un coup d'œil parmi les autres espèces.
+      const isOrca = (a.species || "orque") === "orque";
+      const size = isOrca ? (isRecent ? 54 : 40) : (isRecent ? 42 : 30);
+      const fontSize = isOrca ? (isRecent ? 40 : 28) : (isRecent ? 30 : 20);
+      const filterCss = isOrca
+        ? `grayscale(1) contrast(1.25) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
+        : `drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color})`;
       const speciesIcon = window.L.divIcon({
-        html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-size:${isRecent ? 30 : 20}px;line-height:1;opacity:${isRecent ? 1 : 0.75};filter:drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color});">${sp.emoji}</div>`,
+        html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;opacity:${isRecent ? 1 : 0.75};filter:${filterCss};">${sp.emoji}</div>`,
         className: "",
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
