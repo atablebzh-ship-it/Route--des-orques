@@ -656,6 +656,8 @@ export default function RouteDesOrques() {
   const [cvDestLat, setCvDestLat] = useState(null);
   const [cvDestLon, setCvDestLon] = useState(null);
   const [cvEta, setCvEta] = useState("");const [pickTarget, setPickTarget] = useState(null); // "rdv" | "dest" | null
+  const cvDepartureRef = useRef(null);
+  const cvEtaRef = useRef(null);
 
   const [showImportPicker, setShowImportPicker] = useState(false);
   const [importedWaypoints, setImportedWaypoints] = useState([]);
@@ -2013,8 +2015,14 @@ const startPicking = (target) => {
   </div>
 </div>
               <Field label="Date et heure de départ">
-                <input type="datetime-local" value={cvDeparture} onChange={(e) => setCvDeparture(e.target.value)}
-                  className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                <div className="flex items-center gap-2">
+                  <input ref={cvDepartureRef} type="datetime-local" value={cvDeparture} onChange={(e) => setCvDeparture(e.target.value)}
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                  <button type="button" onClick={() => cvDepartureRef.current?.blur()}
+                    className="flex items-center gap-1 text-xs px-2.5 py-2 rounded font-medium shrink-0" style={{ background: COLORS.cyanDim, color: COLORS.cyan }}>
+                    <Check size={13} /> Valider
+                  </button>
+                </div>
               </Field>
               <Field label="Destination"><input value={cvDest} onChange={(e) => setCvDest(e.target.value)} placeholder="Ex. Port de Saint-Jean-de-Luz"
                   className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
@@ -2040,8 +2048,14 @@ const startPicking = (target) => {
                 </p>
               )}
               <Field label="Heure d'arrivée estimée">
-                <input type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
-                  className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                <div className="flex items-center gap-2">
+                  <input ref={cvEtaRef} type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                  <button type="button" onClick={() => cvEtaRef.current?.blur()}
+                    className="flex items-center gap-1 text-xs px-2.5 py-2 rounded font-medium shrink-0" style={{ background: COLORS.cyanDim, color: COLORS.cyan }}>
+                    <Check size={13} /> Valider
+                  </button>
+                </div>
               </Field>
               <button onClick={createConvoy} className="w-full py-2.5 rounded font-medium text-sm" style={{ background: COLORS.orange, color: "#1A0E08" }}>
                 Créer le convoi
