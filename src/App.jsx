@@ -150,6 +150,14 @@ const RESCUE_STATIONS = [
   { name: "ISN Vila Real de Santo António", org: "ISN", address: "Vila Real de Santo António, Portugal", lat: 37.1936, lon: -7.4147, phone: null },
 ];
 
+// Contacts officiels de secours en mer par pays (numéros publics, diffusés par les autorités
+// elles-mêmes — à toujours privilégier le canal national plutôt qu'une station individuelle).
+const RESCUE_CONTACT = {
+  SNSM: { vhf: "Canal 16", phone: "196 (CROSS)" },
+  "Salvamento Marítimo": { vhf: "Canal 16", phone: "900 202 202 / 112" },
+  ISN: { vhf: "Canal 16", phone: "112" },
+};
+
 // --- Notifications push : clé publique VAPID (la clé privée reste côté serveur uniquement) ---
 const VAPID_PUBLIC_KEY = "BMIS8tdZkU4-Ds_en30kFg0TsZWuxFnzBFguaStsE9DGI7FhxH2IIOdzvJyph2c4KGT_ZTMFkiNnJ7GKp69oeYs";
 
@@ -475,9 +483,11 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
         iconAnchor: [18, 18],
       });
       RESCUE_STATIONS.forEach((s) => {
-        const stationDesc = `<b>${s.name}</b><br/>${s.org}<br/>${s.address}`;
+        const contact = RESCUE_CONTACT[s.org];
+        const contactLine = contact ? `<br/>VHF ${contact.vhf} · ☎ ${contact.phone}` : "";
+        const stationDesc = `<b>${s.name}</b><br/>${s.org}<br/>${s.address}${contactLine}`;
         window.L.marker([s.lat, s.lon], { icon: buoyIcon })
-          .bindTooltip(`${s.name}<br/>${s.address}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .bindTooltip(`${s.name}<br/>${s.address}${contactLine}`, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .bindPopup(stationDesc)
           .addTo(layer);
       });
