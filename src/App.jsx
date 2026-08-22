@@ -909,6 +909,15 @@ if (p) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
+  // Message d'erreur détaillé selon le code retourné par l'API de géolocalisation,
+  // pour que l'utilisateur sache exactement quoi corriger (permission / signal / délai).
+  const geoErrorMessage = (err) => {
+    if (err && err.code === 1) return "Localisation bloquée : autorise l'accès à la position dans les réglages du navigateur (icône cadenas/site à côté de l'URL), puis réessaie.";
+    if (err && err.code === 2) return "Position indisponible : signal GPS trop faible. Réessaie près d'une fenêtre ou en extérieur, ou choisis le point sur la carte.";
+    if (err && err.code === 3) return "Délai dépassé en cherchant ta position. Réessaie, ou choisis le point directement sur la carte.";
+    return "Position refusée. Réessaie ou vérifie l'autorisation de localisation.";
+  };
+
   const useGeolocation = (setLat, setLon) => {
     setGeoError("");
     if (!navigator.geolocation) {
@@ -920,8 +929,8 @@ if (p) {
         setLat(p.coords.latitude.toFixed(5));
         setLon(p.coords.longitude.toFixed(5));
       },
-      () => setGeoError("Position refusée. Saisis tes coordonnées manuellement."),
-      { enableHighAccuracy: true, timeout: 8000 }
+      (err) => setGeoError(geoErrorMessage(err) || "Position refusée. Saisis tes coordonnées manuellement."),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
     );
   };
 
@@ -1097,8 +1106,8 @@ if (p) {
     }
     navigator.geolocation.getCurrentPosition(
       (p) => updatePosition(p.coords.latitude, p.coords.longitude),
-      () => setGeoError("Position refusée. Réessaie ou vérifie l'autorisation de localisation."),
-      { enableHighAccuracy: true, timeout: 8000 }
+      (err) => setGeoError(geoErrorMessage(err)),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
     );
   };
 
@@ -1115,11 +1124,11 @@ if (p) {
         setAlertLon(p.coords.longitude);
         setAlertLocating(false);
       },
-      () => {
-        setGeoError("Position refusée. Réessaie ou vérifie l'autorisation de localisation.");
+      (err) => {
+        setGeoError(geoErrorMessage(err));
         setAlertLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
     );
   };
 
@@ -1228,14 +1237,21 @@ if (p) {
   const handlePickLocation = (lat, lon) => {
   if (pickTarget === "rdv") { setCvRdvLat(lat); setCvRdvLon(lon); }
   if (pickTarget === "dest") { setCvDestLat(lat); setCvDestLon(lon); }
+  if (pickTarget === "alert") { setAlertLat(lat); setAlertLon(lon); }
+  const wasAlert = pickTarget === "alert";
   setPickTarget(null);
-  setShowConvoyForm(true);
-  setTab("convois");
+  if (wasAlert) {
+    setShowAlertForm(true);
+  } else {
+    setShowConvoyForm(true);
+    setTab("convois");
+  }
 };
 
 const startPicking = (target) => {
   setPickTarget(target);
   setShowConvoyForm(false);
+  setShowAlertForm(false);
   setTab("carte");
 };const openConvoyForm = () => {
     setCvRdvLat(pos?.lat ?? null);
@@ -1940,14 +1956,20 @@ const startPicking = (target) => {
               <textarea value={alertNotes} onChange={(e) => setAlertNotes(e.target.value)} rows={3} placeholder="Ex. Approche curieuse du safran, rester calme"
                 className="w-full px-3 py-2 rounded outline-none text-sm resize-none" style={inputStyle} />
             </Field>
-            <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
               <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
                 Position : {alertLat != null && alertLon != null ? `${alertLat.toFixed(4)}, ${alertLon.toFixed(4)}` : "non localisée"}
               </p>
-              <button onClick={locateForAlert} disabled={alertLocating}
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
-                <LocateFixed size={13} /> {alertLocating ? "Localisation…" : "Me localiser"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => startPicking("alert")}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>
+                  <LocateFixed size={13} /> Sur la carte
+                </button>
+                <button onClick={locateForAlert} disabled={alertLocating}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                  <LocateFixed size={13} /> {alertLocating ? "Localisation…" : "Me localiser"}
+                </button>
+              </div>
             </div>
             {geoError && <p className="text-xs mt-1.5" style={{ color: COLORS.orange }}>{geoError}</p>}
             <button onClick={addAlert} disabled={alertLat == null || alertLon == null}
