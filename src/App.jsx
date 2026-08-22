@@ -82,9 +82,20 @@ function fmtDist(km, unit) {
 
 // Sources officielles pour l'historique des interactions orques hors signalements de la communauté
 const OFFICIAL_ORCA_SOURCES = [
-  { label: "GTOA — Groupe de Travail Orques Atlantique", url: "https://gtoa.fr" },
-  { label: "Cruising Association — Orca Attack Reports", url: "https://theca.org.uk/orca-alert" },
+  { label: "GTOA / Orca Ibérica — Groupe de Travail Orques Atlantique", url: "https://www.orcaiberica.org/fr" },
+  { label: "Cruising Association — Signaler une interaction", url: "https://www.theca.org.uk/orcas/interaction-report-form" },
 ];
+
+// Catalogue des espèces marines observables et signalables sur la carte (au-delà des orques) :
+// utile pour les plaisanciers (comportement à adopter, curiosité) sans lien avec le risque incident.
+const SPECIES_OPTIONS = [
+  { key: "orque", label: "Orque", labelPlural: "orques", emoji: "🐋", pushTitle: "Orques signalées" },
+  { key: "dauphin", label: "Dauphin", labelPlural: "dauphins", emoji: "🐬", pushTitle: "Dauphins signalés" },
+  { key: "tortue", label: "Tortue marine", labelPlural: "tortues", emoji: "🐢", pushTitle: "Tortues signalées" },
+];
+function speciesInfo(key) {
+  return SPECIES_OPTIONS.find((s) => s.key === key) || SPECIES_OPTIONS[0];
+}
 
 // --- Couloir maritime Brest → Gibraltar : points au large des principaux caps, pour un tracé
 // automatique de route qui longe la côte au lieu de couper à travers les terres (façon
@@ -442,22 +453,23 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
     alertMarkersRef.current = {};
     alertsWithDist.forEach((a) => {
+      const sp = speciesInfo(a.species || "orque");
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
       const size = isRecent ? 44 : 32;
-      const orcaIcon = window.L.divIcon({
-        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 7 : 4}px ${color}55;opacity:${isRecent ? 1 : 0.75};font-size:${isRecent ? 22 : 17}px;">🐋</div>`,
+      const speciesIcon = window.L.divIcon({
+        html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A1628;box-shadow:0 0 0 ${isRecent ? 7 : 4}px ${color}55;opacity:${isRecent ? 1 : 0.75};font-size:${isRecent ? 22 : 17}px;">${sp.emoji}</div>`,
         className: "",
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
       const alertDesc = `
-        <div class="orca-tooltip-title">${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} orque${a.count > 1 ? "s" : ""}</div>
+        <div class="orca-tooltip-title">${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} ${a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}</div>
         <div class="orca-tooltip-meta">${fmtDateTime(new Date(a.createdAt).toISOString())} · ${a.author}</div>
         <div class="orca-tooltip-meta">${a.lat.toFixed(4)}, ${a.lon.toFixed(4)}</div>
         ${a.notes ? `<div class="orca-tooltip-notes">${a.notes}</div>` : ""}
       `;
-      const alertMarker = window.L.marker([a.lat, a.lon], { icon: orcaIcon })
+      const alertMarker = window.L.marker([a.lat, a.lon], { icon: speciesIcon })
         .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
         .addTo(layer);
       alertMarkersRef.current[a.id] = alertMarker;
@@ -771,6 +783,7 @@ export default function RouteDesOrques() {
   const [alertsView, setAlertsView] = useState("recentes");
   const [showShipyards, setShowShipyards] = useState(true);
   const [showRescueStations, setShowRescueStations] = useState(true);
+  const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
   const [distUnit, setDistUnitState] = useState(() => {
     try { return localStorage.getItem("orca_dist_unit") === "nm" ? "nm" : "km"; } catch (e) { return "km"; }
@@ -786,6 +799,7 @@ export default function RouteDesOrques() {
   const [alertCount, setAlertCount] = useState("");
   const [alertNotes, setAlertNotes] = useState("");
   const [alertIncident, setAlertIncident] = useState(false);
+  const [alertSpecies, setAlertSpecies] = useState("orque");
   const [alertLat, setAlertLat] = useState(null);
   const [alertLon, setAlertLon] = useState(null);
   const [alertLocating, setAlertLocating] = useState(false);
@@ -1024,6 +1038,7 @@ if (p) {
         setAlerts(alertsRes.data.map((a) => ({
           id: a.id, authorId: a.author_id, author: a.author, boatName: a.boat_name,
           lat: a.lat, lon: a.lon, count: a.count, notes: a.notes, incident: !!a.incident, createdAt: new Date(a.created_at).getTime(),
+          species: a.species || "orque",
         })));
       }
 
@@ -1313,6 +1328,7 @@ if (p) {
     setAlertLon(pos?.lon ?? null);
     setAlertCount("1");
     setAlertIncident(false);
+    setAlertSpecies("orque");
     setShowAlertForm(true);
   };
 
@@ -1358,30 +1374,34 @@ if (p) {
     if (!count || count < 1) return;
     setSaving(true);
     try {
+      const sp = speciesInfo(alertSpecies);
       const { data, error } = await supabase
         .from("alerts")
-        .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim(), incident: alertIncident })
+        .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim(), incident: alertIncident, species: alertSpecies })
         .select()
         .single();
       if (!error && data) {
         const entry = {
           id: data.id, authorId: data.author_id, author: data.author, boatName: data.boat_name,
           lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, incident: !!data.incident, createdAt: new Date(data.created_at).getTime(),
+          species: data.species || alertSpecies,
         };
         setAlerts((prev) => [entry, ...prev].slice(0, MAX_ALERTS));
       }
       setAlertCount("");
       setAlertNotes("");
       setAlertIncident(false);
+      setAlertSpecies("orque");
       setAlertLat(null);
       setAlertLon(null);
       setShowAlertForm(false);
       setTab("alerts");
 
+      const animalLabel = count > 1 ? sp.labelPlural : sp.label.toLowerCase();
       const myConvoyNow = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
       const memberIds = myConvoyNow ? myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
       if (memberIds.length) {
-        sendPush(memberIds, "Orques signalées", `${profile.pseudo} a signalé ${count} orque${count > 1 ? "s" : ""} près de votre convoi`, "/");
+        sendPush(memberIds, `${sp.emoji} ${sp.pushTitle}`, `${profile.pseudo} a signalé ${count} ${animalLabel} près de votre convoi`, "/");
       }
 
       // Notifie aussi tous les autres bateaux dont le rayon d'alerte personnalisé couvre
@@ -1392,7 +1412,7 @@ if (p) {
         .filter((b) => (b.alertRadiusKm == null ? true : distanceKm(lat, lon, b.lat, b.lon) <= b.alertRadiusKm))
         .map((b) => b.id);
       if (nearbyIds.length) {
-        sendPush(nearbyIds, "Orques signalées", `${profile.pseudo} a signalé ${count} orque${count > 1 ? "s" : ""} dans ta zone de navigation`, "/");
+        sendPush(nearbyIds, `${sp.emoji} ${sp.pushTitle}`, `${profile.pseudo} a signalé ${count} ${animalLabel} dans ta zone de navigation`, "/");
       }
     } catch (e) {}
     setSaving(false);
@@ -1805,11 +1825,13 @@ const startPicking = (target) => {
     }))
     .sort((a, b) => (a.dist ?? 0) - (b.dist ?? 0));
 
-  const alertsWithDist = alerts.map((a) => ({
-    ...a,
-    dist: pos ? distanceKm(pos.lat, pos.lon, a.lat, a.lon) : null,
-    brg: pos ? bearingDeg(pos.lat, pos.lon, a.lat, a.lon) : null,
-  }));
+  const alertsWithDist = alerts
+    .filter((a) => visibleSpecies[a.species || "orque"] !== false)
+    .map((a) => ({
+      ...a,
+      dist: pos ? distanceKm(pos.lat, pos.lon, a.lat, a.lon) : null,
+      brg: pos ? bearingDeg(pos.lat, pos.lon, a.lat, a.lon) : null,
+    }));
 
   const activeCount = others.filter((b) => !b.stale).length;
   const myConvoy = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
@@ -1856,6 +1878,31 @@ const startPicking = (target) => {
               {label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Bandeau de filtre par espèce observée (orques / dauphins / tortues), uniquement sur l'onglet Carte */}
+      {tab === "carte" && (
+        <div className="absolute z-[1150] flex" style={{ top: 116, right: 12, gap: 6 }}>
+          {SPECIES_OPTIONS.map((sp) => {
+            const active = visibleSpecies[sp.key] !== false;
+            return (
+              <button key={sp.key}
+                onClick={() => setVisibleSpecies((prev) => ({ ...prev, [sp.key]: !active }))}
+                title={`${active ? "Masquer" : "Afficher"} les ${sp.labelPlural}`}
+                className="text-xs px-2.5 py-1.5 rounded-full shadow-lg font-medium flex items-center gap-1"
+                style={{
+                  background: active ? COLORS.orangeDim : "rgba(18,40,63,0.92)",
+                  backdropFilter: "blur(12px)",
+                  color: active ? COLORS.orange : COLORS.muted,
+                  border: `1px solid ${active ? COLORS.orangeDim : COLORS.border}`,
+                  opacity: active ? 1 : 0.6,
+                }}>
+                <span>{sp.emoji}</span>
+                <span>{sp.labelPlural}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -1984,7 +2031,7 @@ const startPicking = (target) => {
                   <button onClick={openAlertForm}
                     className="w-full py-2.5 rounded font-medium text-sm mb-2 flex items-center justify-center gap-2"
                     style={{ background: COLORS.orange, color: "#1A0E08" }}>
-                    <Plus size={16} /> Signaler des orques
+                    <Plus size={16} /> Signaler une observation
                   </button>
 
                   <div className="flex gap-2 mb-2">
@@ -2014,7 +2061,9 @@ const startPicking = (target) => {
                           </Panel>
                         ) : (
                           <div className="space-y-2">
-                            {shown.map((a) => (
+                            {shown.map((a) => {
+                              const sp = speciesInfo(a.species || "orque");
+                              return (
                               <Panel key={a.id} className="p-3 cursor-pointer" onClick={() => { setAlertFocus({ lat: a.lat, lon: a.lon, id: a.id, ts: Date.now() }); setTab("carte"); }}
                                 title="Localiser ce marqueur sur la carte">
                                 <div className="flex items-start justify-between">
@@ -2022,9 +2071,9 @@ const startPicking = (target) => {
                                     {a.incident ? (
                                       <AlertTriangle size={16} style={{ color: COLORS.orange }} />
                                     ) : (
-                                      <Waves size={16} style={{ color: COLORS.cyan }} />
+                                      <span style={{ fontSize: 15, lineHeight: 1 }}>{sp.emoji}</span>
                                     )}
-                                    <span className="text-sm font-medium" style={{ color: COLORS.text }}>{a.count} orque{a.count > 1 ? "s" : ""}</span>
+                                    <span className="text-sm font-medium" style={{ color: COLORS.text }}>{a.count} {a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}</span>
                                   </div>
                                   <span className="text-xs" style={{ color: COLORS.muted }}>
                                     {alertsView === "recentes" ? timeAgo(a.createdAt) : fmtDateTime(new Date(a.createdAt).toISOString())}
@@ -2045,7 +2094,8 @@ const startPicking = (target) => {
                                   </div>
                                 </div>
                               </Panel>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
@@ -2288,9 +2338,25 @@ const startPicking = (target) => {
         <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }}>
           <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>SIGNALER DES ORQUES</h3>
+              <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>SIGNALER UNE OBSERVATION</h3>
               <button onClick={() => setShowAlertForm(false)}><X size={18} style={{ color: COLORS.muted }} /></button>
             </div>
+            <Field label="Espèce observée">
+              <div className="flex gap-2">
+                {SPECIES_OPTIONS.map((sp) => (
+                  <button key={sp.key} type="button" onClick={() => setAlertSpecies(sp.key)}
+                    className="flex-1 py-2 rounded text-sm font-medium flex items-center justify-center gap-1.5"
+                    style={{
+                      background: alertSpecies === sp.key ? COLORS.orangeDim : "transparent",
+                      color: alertSpecies === sp.key ? COLORS.orange : COLORS.muted,
+                      border: `1px solid ${alertSpecies === sp.key ? COLORS.orangeDim : COLORS.border}`,
+                    }}>
+                    <span>{sp.emoji}</span> {sp.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <div className="h-3" />
             <Field label="Nombre d'individus">
               <div className="flex items-center gap-2">
                 <button type="button"
@@ -2370,7 +2436,7 @@ const startPicking = (target) => {
             <button onClick={addAlert} disabled={alertLat == null || alertLon == null}
               className="w-full py-2.5 rounded font-medium text-sm mt-3"
               style={{ background: COLORS.orange, color: "#1A0E08", opacity: alertLat == null || alertLon == null ? 0.5 : 1 }}>
-              Publier l'alerte
+              Publier le signalement
             </button>
           </div>
         </div>
