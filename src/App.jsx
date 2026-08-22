@@ -10,15 +10,6 @@ const FONTS = `
   margin-top: 64px !important;
 }
 
-/* Rendu "vieille carte marine" : teinte parchemin/sépia appliquée uniquement aux tuiles
-   (fond OSM + surcouche OpenSeaMap), sans toucher aux marqueurs, routes ni bulles. */
-.leaflet-container {
-  background: #d7c9a3 !important;
-}
-.leaflet-tile-pane {
-  filter: sepia(0.5) saturate(1.4) hue-rotate(-8deg) brightness(0.94) contrast(1.1);
-}
-
 .leaflet-tooltip.orca-tooltip {
   background: #0F1F38;
   color: #FFFFFF;
@@ -358,12 +349,13 @@ const inputStyle = {
 const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23FF6B35" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23FF6B35" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23FF6B35" stroke-width="5"/></svg>') 22 22, crosshair`;
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, pickMode, onPickLocation, trails, showTrails, myBoatId, focusTarget }) {
+function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, pickMode, onPickLocation, trails, showTrails, myBoatId, focusTarget, mapStyle }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
   const onPickLocationRef = useRef(onPickLocation);
   const alertMarkersRef = useRef({});
+  const baseLayerRef = useRef(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
 
@@ -373,12 +365,9 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
       pos ? [pos.lat, pos.lon] : [47.0, -3.0],
       pos ? 10 : 5
     );
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map);
     window.L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
       maxZoom: 18,
+      zIndex: 2,
       attribution: '&copy; OpenSeaMap',
     }).addTo(map);
     layerRef.current = window.L.layerGroup().addTo(map);
@@ -393,6 +382,27 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Fond de carte : rue (OpenStreetMap) ou satellite (Esri World Imagery), au choix de
+  // l'utilisateur. Toujours en dessous de la surcouche OpenSeaMap (zIndex 2 > 1).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !window.L) return;
+    if (baseLayerRef.current) map.removeLayer(baseLayerRef.current);
+    const newBase = mapStyle === "satellite"
+      ? window.L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+          maxZoom: 18,
+          zIndex: 1,
+          attribution: "Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics",
+        })
+      : window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 18,
+          zIndex: 1,
+          attribution: "&copy; OpenStreetMap",
+        });
+    newBase.addTo(map);
+    baseLayerRef.current = newBase;
+  }, [mapStyle]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -752,6 +762,7 @@ export default function RouteDesOrques() {
   const [alertsView, setAlertsView] = useState("recentes");
   const [showShipyards, setShowShipyards] = useState(true);
   const [showRescueStations, setShowRescueStations] = useState(true);
+  const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
   const [alertFocus, setAlertFocus] = useState(null);
   const [showTrails, setShowTrails] = useState(true);
   const [trails, setTrails] = useState({});
@@ -1787,8 +1798,27 @@ const startPicking = (target) => {
                 showTrails={showTrails}
                 myBoatId={profile.id}
                 focusTarget={alertFocus}
+                mapStyle={mapStyle}
               />
       </div>
+
+      {/* Sélecteur de fond de carte : rue / satellite (uniquement sur l'onglet Carte) */}
+      {tab === "carte" && (
+        <div className="absolute z-[1150] flex" style={{ top: 72, right: 12, gap: 6 }}>
+          {[["street", "Carte"], ["satellite", "Satellite"]].map(([val, label]) => (
+            <button key={val} onClick={() => setMapStyle(val)}
+              className="text-xs px-3 py-1.5 rounded-full shadow-lg font-medium"
+              style={{
+                background: mapStyle === val ? COLORS.orangeDim : "rgba(18,40,63,0.92)",
+                backdropFilter: "blur(12px)",
+                color: mapStyle === val ? COLORS.orange : COLORS.muted,
+                border: `1px solid ${mapStyle === val ? COLORS.orangeDim : COLORS.border}`,
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Header flottant */}
       <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 py-3"
