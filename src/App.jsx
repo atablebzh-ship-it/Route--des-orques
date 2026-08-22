@@ -1,6 +1,6 @@
 import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Anchor, Navigation, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers } from "lucide-react";
+import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers, Binoculars } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
 
 const FONTS = `
@@ -8,6 +8,30 @@ const FONTS = `
 
 .leaflet-top.leaflet-left {
   margin-top: 64px !important;
+}
+
+/* Zoom manuel +/- : repositionné en haut à droite, sous le bouton Carte/Satellite,
+   et restylé pour matcher son look (fond blanc, coins arrondis). */
+.leaflet-top.leaflet-right {
+  margin-top: 128px !important;
+  margin-right: 12px !important;
+}
+.leaflet-control-zoom {
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25) !important;
+}
+.leaflet-control-zoom a {
+  background: #FFFFFF !important;
+  color: #1A1A1A !important;
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  font-size: 20px !important;
+}
+.leaflet-control-zoom a:hover {
+  background: #F2F2F2 !important;
 }
 
 .leaflet-tooltip.orca-tooltip {
@@ -419,14 +443,14 @@ function IconBtn({ onClick, active, children, label }) {
   return (
            <button
           onClick={onClick}
-          className="flex flex-col items-center justify-center gap-1 px-3 py-2.5 rounded-full shadow-lg"
+          className="flex flex-col items-center justify-center gap-1 px-3.5 py-3 rounded-full shadow-lg"
           style={{
             color: active ? COLORS.cyan : COLORS.text,
             background: active ? COLORS.cyanDim : "rgba(18,40,63,0.92)",
             backdropFilter: "blur(12px)",
             border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
             opacity: active ? 1 : 0.85,
-            minWidth: 60,
+            minWidth: 72,
           }}
         >
       {children}
@@ -453,6 +477,39 @@ const inputStyle = {
 // --- Curseur de sélection sur la carte : viseur épais et bien visible pendant le "Sur la carte" ---
 const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23FF6B35" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23FF6B35" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23FF6B35" stroke-width="5"/></svg>') 22 22, crosshair`;
 
+// Icône "élevage de poissons" : un filet suspendu entre deux perches (représente un parc
+// aquacole flottant), plutôt que l'emoji poisson générique. Version HTML brute (pour les
+// divIcon Leaflet, qui n'acceptent pas de JSX) + composant React (pour les boutons de l'UI).
+const FISH_NET_SVG_HTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="1.6" stroke-linecap="round"><ellipse cx="4" cy="4" rx="2.2" ry="1.3" transform="rotate(-40 4 4)" fill="#000000" stroke="none"/><ellipse cx="20" cy="4" rx="2.2" ry="1.3" transform="rotate(40 20 4)" fill="#000000" stroke="none"/><ellipse cx="4" cy="20" rx="2.2" ry="1.3" transform="rotate(40 4 20)" fill="#000000" stroke="none"/><ellipse cx="20" cy="20" rx="2.2" ry="1.3" transform="rotate(-40 20 20)" fill="#000000" stroke="none"/><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="8.5" y1="5" x2="8.5" y2="19"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="15.5" y1="5" x2="15.5" y2="19"/><line x1="5" y1="8.5" x2="19" y2="8.5"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="15.5" x2="19" y2="15.5"/></svg>`;
+// Icône "voilier" pleine (silhouette solide, façon logo), plutôt que le tracé fin de l'icône
+// Sailboat de lucide-react — plus lisible en petite taille et personnalisable par couleur.
+function SolidSailboatIcon({ size = 16, color = "#4FC3D9", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <path d="M12.5 2.5 L19 14.5 L12.5 14.5 Z" fill={color} />
+      <path d="M11 6 L11 14.5 L4.5 14.5 Z" fill={color} />
+      <path d="M2.5 16.5 L21.5 16.5 L18 20.5 L6 20.5 Z" fill={color} />
+    </svg>
+  );
+}
+function FishNetIcon({ size = 20, color = "#000000" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round">
+      <ellipse cx="4" cy="4" rx="2.2" ry="1.3" transform="rotate(-40 4 4)" fill={color} stroke="none" />
+      <ellipse cx="20" cy="4" rx="2.2" ry="1.3" transform="rotate(40 20 4)" fill={color} stroke="none" />
+      <ellipse cx="4" cy="20" rx="2.2" ry="1.3" transform="rotate(40 4 20)" fill={color} stroke="none" />
+      <ellipse cx="20" cy="20" rx="2.2" ry="1.3" transform="rotate(-40 20 20)" fill={color} stroke="none" />
+      <rect x="5" y="5" width="14" height="14" rx="1" />
+      <line x1="8.5" y1="5" x2="8.5" y2="19" />
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="15.5" y1="5" x2="15.5" y2="19" />
+      <line x1="5" y1="8.5" x2="19" y2="8.5" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <line x1="5" y1="15.5" x2="19" y2="15.5" />
+    </svg>
+  );
+}
+
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
 function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, focusTarget, mapStyle }) {
   const mapElRef = useRef(null);
@@ -467,10 +524,13 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
   useEffect(() => {
     if (!mapElRef.current || mapRef.current || !window.L) return;
-    const map = window.L.map(mapElRef.current, { zoomControl: true, attributionControl: true }).setView(
+    const map = window.L.map(mapElRef.current, { zoomControl: false, attributionControl: true }).setView(
       pos ? [pos.lat, pos.lon] : [47.0, -3.0],
       pos ? 10 : 5
     );
+    // Zoom manuel (+ / -) repositionné en haut à droite, sous le bouton Carte/Satellite
+    // (voir règle CSS .leaflet-top.leaflet-right ci-dessus pour le décalage).
+    window.L.control.zoom({ position: "topright" }).addTo(map);
     window.L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
       maxZoom: 18,
       zIndex: 2,
@@ -687,7 +747,7 @@ function MarineMap({ pos, others, alertsWithDist, myConvoy, myConvoyMemberIds, n
 
     if (showFishFarms) {
       const fishFarmIcon = window.L.divIcon({
-        html: `<div style="background:${COLORS.cyan};width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A2E33;font-size:18px;">🐟</div>`,
+        html: `<div style="background:${COLORS.cyan};width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #0A2E33;">${FISH_NET_SVG_HTML}</div>`,
         className: "",
         iconSize: [34, 34],
         iconAnchor: [17, 17],
@@ -2156,9 +2216,9 @@ const startPicking = (target) => {
       {tab === "carte" && (
         <div className="absolute z-[1150] flex flex-col" style={{ top: "50%", left: 12, transform: "translateY(-50%)", gap: 10 }}>
           {[
-            { key: "shipyards", emoji: "🛠️", label: "chantiers navals", active: showShipyards, toggle: () => setShowShipyards((v) => !v) },
-            { key: "rescue", emoji: "🛟", label: "stations de secours", active: showRescueStations, toggle: () => setShowRescueStations((v) => !v) },
-            { key: "fishfarms", emoji: "🐟", label: "élevages de poissons", active: showFishFarms, toggle: () => setShowFishFarms((v) => !v) },
+            { key: "shipyards", node: <span style={{ fontSize: 32, lineHeight: 1, display: "block" }}>🛠️</span>, label: "chantiers navals", active: showShipyards, toggle: () => setShowShipyards((v) => !v) },
+            { key: "rescue", node: <span style={{ fontSize: 32, lineHeight: 1, display: "block" }}>🛟</span>, label: "stations de secours", active: showRescueStations, toggle: () => setShowRescueStations((v) => !v) },
+            { key: "fishfarms", node: <FishNetIcon size={30} />, label: "élevages de poissons (filets)", active: showFishFarms, toggle: () => setShowFishFarms((v) => !v) },
           ].map((layer) => (
             <button key={layer.key}
               onClick={layer.toggle}
@@ -2171,7 +2231,7 @@ const startPicking = (target) => {
                 border: `2px solid ${layer.active ? COLORS.cyanDim : COLORS.border}`,
                 opacity: layer.active ? 1 : 0.5,
               }}>
-              <span style={{ fontSize: 32, lineHeight: 1, display: "block" }}>{layer.emoji}</span>
+              {layer.node}
             </button>
           ))}
         </div>
@@ -2192,10 +2252,22 @@ const startPicking = (target) => {
         </div>
       </div>
 
-      {/* Panneau flottant pour les onglets autres que la carte */}
+      {/* Panneau flottant pour les onglets autres que la carte : la carte reste toujours
+          visible en fond, ce panneau vient juste se poser par-dessus. Un bouton fermer permet
+          d'y revenir directement sans repasser par un onglet "Carte" dédié. */}
       {tab !== "carte" && (
         <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 92 }}>
           <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "62vh", background: "rgba(15,31,56,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
+            <div className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+              <span className="text-sm font-semibold tracking-wide" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
+                {tab === "convois" ? t.tabConvois : tab === "alerts" ? t.tabAlerts : tab === "chat" ? t.tabChat : t.tabProfile}
+              </span>
+              <button onClick={() => setTab("carte")} title="Fermer et revenir à la carte"
+                className="flex items-center justify-center rounded-full shrink-0"
+                style={{ width: 28, height: 28, background: "rgba(255,255,255,0.08)", color: COLORS.text }}>
+                <X size={16} />
+              </button>
+            </div>
             <div className="overflow-y-auto px-4 py-4" style={{ flex: 1 }}>
 
               {tab === "convois" && (
@@ -2628,12 +2700,20 @@ const startPicking = (target) => {
 
       {/* Barre d'onglets flottante */}
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
-       <div className="flex" style={{ gap: 10 }}>
-          <IconBtn onClick={() => setTab("carte")} active={tab === "carte"} label={t.tabCarte}><Navigation size={17} /></IconBtn>
-          <IconBtn onClick={() => setTab("convois")} active={tab === "convois"} label={t.tabConvois}><Users size={17} /></IconBtn>
-          <IconBtn onClick={() => setTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><Waves size={17} /></IconBtn>
-          <IconBtn onClick={() => setTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={17} /></IconBtn>
-          <IconBtn onClick={() => setTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={17} /></IconBtn>
+       <div className="flex" style={{ gap: 10, maxWidth: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          {/* Plus d'onglet "Carte" dédié : la carte est la vue de base, toujours visible en
+              fond. Chaque bouton ci-dessous ouvre son panneau par-dessus la carte ; retaper
+              sur le bouton déjà actif (ou le bouton fermer du panneau) referme le panneau et
+              redonne directement accès à la carte, sans détour par un onglet séparé. */}
+          <IconBtn onClick={() => setTab(tab === "convois" ? "carte" : "convois")} active={tab === "convois"} label={t.tabConvois}>
+            <span style={{ position: "relative", width: 48, height: 36, display: "inline-block" }}>
+              <SolidSailboatIcon size={28} color={COLORS.orange} style={{ position: "absolute", left: 0, bottom: 0 }} />
+              <SolidSailboatIcon size={34} color={COLORS.green} style={{ position: "absolute", right: 0, top: 0 }} />
+            </span>
+          </IconBtn>
+          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><Binoculars size={36} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={34} color="#8C7AE6" /></IconBtn>
+          <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={34} color={COLORS.orange} /></IconBtn>
         </div>
       </div>
 
