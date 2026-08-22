@@ -1,6 +1,6 @@
 import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers, Binoculars } from "lucide-react";
+import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
 
 const FONTS = `
@@ -489,6 +489,20 @@ function SolidSailboatIcon({ size = 16, color = "#4FC3D9", style }) {
       <path d="M12.5 2.5 L19 14.5 L12.5 14.5 Z" fill={color} />
       <path d="M11 6 L11 14.5 L4.5 14.5 Z" fill={color} />
       <path d="M2.5 16.5 L21.5 16.5 L18 20.5 L6 20.5 Z" fill={color} />
+    </svg>
+  );
+}
+// Icône "jumelles" dessinée à la main : l'icône "Binoculars" n'existe pas dans la version de
+// lucide-react installée sur le projet (build Vercel en échec : "Binoculars" is not exported),
+// donc on ne dépend plus du jeu d'icônes de la librairie pour celle-ci.
+function BinocularsIcon({ size = 20, color = "currentColor", strokeWidth = 2 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="15" r="4" />
+      <circle cx="18" cy="15" r="4" />
+      <path d="M14 15a2 2 0 0 0-4 0" />
+      <path d="M6 11V7a2 2 0 0 1 2-2" />
+      <path d="M18 11V7a2 2 0 0 0-2-2h-2" />
     </svg>
   );
 }
@@ -2711,7 +2725,7 @@ const startPicking = (target) => {
               <SolidSailboatIcon size={34} color={COLORS.green} style={{ position: "absolute", right: 0, top: 0 }} />
             </span>
           </IconBtn>
-          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><Binoculars size={36} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={36} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
           <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={34} color="#8C7AE6" /></IconBtn>
           <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={34} color={COLORS.orange} /></IconBtn>
         </div>
