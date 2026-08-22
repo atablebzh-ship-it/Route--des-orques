@@ -72,6 +72,13 @@ const MAX_CONVOYS = 40;
 const RECENT_ALERT_MS = 6 * 3600 * 1000;
 const DEFAULT_ALERT_RADIUS_KM = 100; // rayon par défaut pour les notifications push d'alerte orque
 const ALERT_RADIUS_OPTIONS = [10, 25, 50, 100, 200, null]; // null = illimité (pas de filtre de distance)
+const KM_TO_NM = 0.539957; // 1 km en milles nautiques
+
+// Formate une distance en km selon la préférence d'unité choisie (km ou milles nautiques).
+function fmtDist(km, unit) {
+  if (km == null) return "";
+  return unit === "nm" ? `${(km * KM_TO_NM).toFixed(1)} nm` : `${km.toFixed(1)} km`;
+}
 
 // Sources officielles pour l'historique des interactions orques hors signalements de la communauté
 const OFFICIAL_ORCA_SOURCES = [
@@ -765,6 +772,13 @@ export default function RouteDesOrques() {
   const [showShipyards, setShowShipyards] = useState(true);
   const [showRescueStations, setShowRescueStations] = useState(true);
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
+  const [distUnit, setDistUnitState] = useState(() => {
+    try { return localStorage.getItem("orca_dist_unit") === "nm" ? "nm" : "km"; } catch (e) { return "km"; }
+  });
+  const setDistUnit = (u) => {
+    setDistUnitState(u);
+    try { localStorage.setItem("orca_dist_unit", u); } catch (e) {}
+  };
   const [alertFocus, setAlertFocus] = useState(null);
   const [showTrails, setShowTrails] = useState(true);
   const [trails, setTrails] = useState({});
@@ -2019,7 +2033,7 @@ const startPicking = (target) => {
                                 {a.notes && <p className="text-sm mt-1.5" style={{ color: COLORS.text }}>{a.notes}</p>}
                                 <div className="flex items-center justify-between mt-1.5">
                                   <p className="text-xs" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>
-                                    {a.author} · {a.boatName}{a.dist !== null ? ` · ${a.dist.toFixed(1)} km (cap ${Math.round(a.brg)}°)` : ""}
+                                    {a.author} · {a.boatName}{a.dist !== null ? ` · ${fmtDist(a.dist, distUnit)} (cap ${Math.round(a.brg)}°)` : ""}
                                   </p>
                                   <div className="flex items-center gap-2">
                                     <span className="flex items-center gap-1 text-xs" style={{ color: COLORS.cyan }}>
@@ -2127,10 +2141,30 @@ const startPicking = (target) => {
                               color: active ? COLORS.cyan : COLORS.muted,
                               border: `1px solid ${active ? COLORS.cyanDim : COLORS.border}`,
                             }}>
-                            {km == null ? "Illimité" : `${km} km`}
+                            {km == null ? "Illimité" : fmtDist(km, distUnit)}
                           </button>
                         );
                       })}
+                    </div>
+                  </Panel>
+
+                  <Panel className="p-4">
+                    <p className="text-sm" style={{ color: COLORS.text }}>Unité de distance</p>
+                    <p className="text-xs mt-0.5 mb-2.5" style={{ color: COLORS.muted }}>
+                      Utilisée pour les distances affichées dans l'app (alertes, rayon de notification…)
+                    </p>
+                    <div className="flex gap-2">
+                      {[["km", "Kilomètres"], ["nm", "Milles nautiques"]].map(([val, label]) => (
+                        <button key={val} onClick={() => setDistUnit(val)}
+                          className="flex-1 text-xs py-1.5 rounded"
+                          style={{
+                            background: distUnit === val ? COLORS.cyanDim : "transparent",
+                            color: distUnit === val ? COLORS.cyan : COLORS.muted,
+                            border: `1px solid ${distUnit === val ? COLORS.cyanDim : COLORS.border}`,
+                          }}>
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   </Panel>
 
