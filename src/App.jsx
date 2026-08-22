@@ -446,7 +446,9 @@ function IconBtn({ onClick, active, children, label }) {
           className="flex flex-col items-center justify-center gap-1 px-3.5 py-3 rounded-full shadow-lg"
           style={{
             color: active ? COLORS.cyan : COLORS.text,
-            background: active ? COLORS.cyanDim : "rgba(18,40,63,0.92)",
+            /* Fond sombre uniforme (comme Observations) sur tous les boutons, actif ou non —
+               seule la couleur de bordure/texte change pour indiquer l'état actif. */
+            background: "rgba(18,40,63,0.92)",
             backdropFilter: "blur(12px)",
             border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
             opacity: active ? 1 : 0.85,
@@ -2225,32 +2227,6 @@ const startPicking = (target) => {
         </button>
       )}
 
-      {/* Bandeau de filtre par famille de marqueurs (chantiers navals / stations de secours / élevages
-          de poissons), à gauche de la carte, centré verticalement, uniquement sur l'onglet Carte */}
-      {tab === "carte" && (
-        <div className="absolute z-[1150] flex flex-col" style={{ top: "50%", left: 12, transform: "translateY(-50%)", gap: 10 }}>
-          {[
-            { key: "shipyards", node: <span style={{ fontSize: 32, lineHeight: 1, display: "block" }}>🛠️</span>, label: "chantiers navals", active: showShipyards, toggle: () => setShowShipyards((v) => !v) },
-            { key: "rescue", node: <span style={{ fontSize: 32, lineHeight: 1, display: "block" }}>🛟</span>, label: "stations de secours", active: showRescueStations, toggle: () => setShowRescueStations((v) => !v) },
-            { key: "fishfarms", node: <FishNetIcon size={30} />, label: "élevages de poissons (filets)", active: showFishFarms, toggle: () => setShowFishFarms((v) => !v) },
-          ].map((layer) => (
-            <button key={layer.key}
-              onClick={layer.toggle}
-              title={`${layer.active ? "Masquer" : "Afficher"} les ${layer.label}`}
-              className="rounded-full shadow-lg flex items-center justify-center shrink-0"
-              style={{
-                width: 64, height: 64,
-                background: layer.active ? COLORS.cyanDim : "rgba(18,40,63,0.92)",
-                backdropFilter: "blur(12px)",
-                border: `2px solid ${layer.active ? COLORS.cyanDim : COLORS.border}`,
-                opacity: layer.active ? 1 : 0.5,
-              }}>
-              {layer.node}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Header flottant */}
       <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 py-3"
         style={{ background: "rgba(10,22,40,0.82)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${COLORS.border}` }}>
@@ -2264,6 +2240,14 @@ const startPicking = (target) => {
           <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: COLORS.green }} />
           {t.activeLabel(activeCount)}
         </div>
+      </div>
+
+      {/* Chat et Profil ("Moi") : déplacés en haut à gauche, juste sous le bandeau
+          "ROUTE DES ORQUES", toujours visibles (comme la barre du bas) plutôt que rangés
+          avec les autres onglets en bas. */}
+      <div className="absolute z-[1200] flex" style={{ top: 72, left: 12, gap: 10 }}>
+        <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={51} color="#8C7AE6" /></IconBtn>
+        <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={51} color={COLORS.orange} /></IconBtn>
       </div>
 
       {/* Panneau flottant pour les onglets autres que la carte : la carte reste toujours
@@ -2712,7 +2696,10 @@ const startPicking = (target) => {
         </div>
       )}
 
-      {/* Barre d'onglets flottante */}
+      {/* Barre d'onglets flottante : Convois et Observations (ouvrent un panneau par-dessus
+          la carte) + les 3 filtres de calques (chantiers navals / secours / zones de pêche),
+          désormais alignés ici dans le même esprit que les autres — même style de bouton,
+          même taille — plutôt que dans leur ancien bandeau séparé à gauche de la carte. */}
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
        <div className="flex" style={{ gap: 10, maxWidth: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           {/* Plus d'onglet "Carte" dédié : la carte est la vue de base, toujours visible en
@@ -2720,14 +2707,15 @@ const startPicking = (target) => {
               sur le bouton déjà actif (ou le bouton fermer du panneau) referme le panneau et
               redonne directement accès à la carte, sans détour par un onglet séparé. */}
           <IconBtn onClick={() => setTab(tab === "convois" ? "carte" : "convois")} active={tab === "convois"} label={t.tabConvois}>
-            <span style={{ position: "relative", width: 48, height: 36, display: "inline-block" }}>
-              <SolidSailboatIcon size={28} color={COLORS.orange} style={{ position: "absolute", left: 0, bottom: 0 }} />
-              <SolidSailboatIcon size={34} color={COLORS.green} style={{ position: "absolute", right: 0, top: 0 }} />
+            <span style={{ position: "relative", width: 66, height: 51, display: "inline-block" }}>
+              <SolidSailboatIcon size={42} color={COLORS.orange} style={{ position: "absolute", left: 0, bottom: 0 }} />
+              <SolidSailboatIcon size={51} color={COLORS.green} style={{ position: "absolute", right: 0, top: 0 }} />
             </span>
           </IconBtn>
-          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={36} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
-          <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={34} color="#8C7AE6" /></IconBtn>
-          <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={34} color={COLORS.orange} /></IconBtn>
+          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={51} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={() => setShowShipyards((v) => !v)} active={showShipyards} label="Chantiers"><span style={{ fontSize: 44, lineHeight: 1, display: "block" }}>🛠️</span></IconBtn>
+          <IconBtn onClick={() => setShowRescueStations((v) => !v)} active={showRescueStations} label="Secours"><span style={{ fontSize: 44, lineHeight: 1, display: "block" }}>🛟</span></IconBtn>
+          <IconBtn onClick={() => setShowFishFarms((v) => !v)} active={showFishFarms} label="Pêche"><FishNetIcon size={44} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
 
