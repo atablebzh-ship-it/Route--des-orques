@@ -1376,9 +1376,15 @@ if (p) {
   const deleteAlert = async (id) => {
     if (!window.confirm("Supprimer ce signalement ?")) return;
     try {
-      await supabase.from("alerts").delete().eq("id", id).eq("author_id", profile.id);
+      const { error, count } = await supabase.from("alerts").delete({ count: "exact" }).eq("id", id).eq("author_id", profile.id);
+      if (error || !count) {
+        window.alert("Impossible de supprimer ce signalement. La suppression n'est peut-être pas encore autorisée côté Supabase (policy manquante sur la table alerts) — réessaie plus tard ou préviens le développeur.");
+        return;
+      }
       setAlerts((prev) => prev.filter((a) => a.id !== id));
-    } catch (e) {}
+    } catch (e) {
+      window.alert("Impossible de supprimer ce signalement (erreur réseau).");
+    }
   };
 
   const refreshPosition = () => {
