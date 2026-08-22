@@ -70,6 +70,8 @@ const MAX_CHAT = 150;
 const MAX_ALERTS = 300; // couvre les signalements récents + l'historique de la saison
 const MAX_CONVOYS = 40;
 const RECENT_ALERT_MS = 6 * 3600 * 1000;
+const DEFAULT_ALERT_RADIUS_KM = 100; // rayon par défaut pour les notifications push d'alerte orque
+const ALERT_RADIUS_OPTIONS = [10, 25, 50, 100, 200, null]; // null = illimité (pas de filtre de distance)
 
 // Sources officielles pour l'historique des interactions orques hors signalements de la communauté
 const OFFICIAL_ORCA_SOURCES = [
@@ -998,6 +1000,7 @@ if (p) {
           map[b.id] = {
             id: b.id, pseudo: b.pseudo, boatName: b.boat_name, lat: b.lat, lon: b.lon,
             heading: b.heading, status: b.status, updatedAt: new Date(b.updated_at).getTime(),
+            alertRadiusKm: b.alert_radius_km === undefined ? DEFAULT_ALERT_RADIUS_KM : b.alert_radius_km,
           };
         });
         setBoats(map);
@@ -1085,7 +1088,10 @@ if (p) {
         if (!error) {
           setBoats((prev) => ({
             ...prev,
-            [profile.id]: { id: profile.id, pseudo: profile.pseudo, boatName: profile.boatName, lat, lon, heading: headingVal, status, updatedAt: Date.now() },
+            [profile.id]: {
+              id: profile.id, pseudo: profile.pseudo, boatName: profile.boatName, lat, lon, heading: headingVal, status, updatedAt: Date.now(),
+              alertRadiusKm: prev[profile.id]?.alertRadiusKm ?? DEFAULT_ALERT_RADIUS_KM,
+            },
           }));
         }
       } catch (e) {}
@@ -1093,6 +1099,14 @@ if (p) {
     },
     [profile, pos, heading, status]
   );
+
+  const updateAlertRadius = async (km) => {
+    if (!profile) return;
+    setBoats((prev) => (prev[profile.id] ? { ...prev, [profile.id]: { ...prev[profile.id], alertRadiusKm: km } } : prev));
+    try {
+      await supabase.from("boats").update({ alert_radius_km: km }).eq("id", profile.id);
+    } catch (e) {}
+  };
 
   useEffect(() => {
     if (profile && pos) publishMe();
@@ -1351,9 +1365,20 @@ if (p) {
       setTab("alerts");
 
       const myConvoyNow = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
-      if (myConvoyNow) {
-        const memberIds = myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId);
+      const memberIds = myConvoyNow ? myConvoyNow.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
+      if (memberIds.length) {
         sendPush(memberIds, "Orques signalées", `${profile.pseudo} a signalé ${count} orque${count > 1 ? "s" : ""} près de votre convoi`, "/");
+      }
+
+      // Notifie aussi tous les autres bateaux dont le rayon d'alerte personnalisé couvre
+      // la position du signalement (rayon "illimité" = null → toujours notifié).
+      const memberIdSet = new Set(memberIds);
+      const nearbyIds = Object.values(boats)
+        .filter((b) => b.id !== profile.id && !memberIdSet.has(b.id) && b.lat != null && b.lon != null)
+        .filter((b) => (b.alertRadiusKm == null ? true : distanceKm(lat, lon, b.lat, b.lon) <= b.alertRadiusKm))
+        .map((b) => b.id);
+      if (nearbyIds.length) {
+        sendPush(nearbyIds, "Orques signalées", `${profile.pseudo} a signalé ${count} orque${count > 1 ? "s" : ""} dans ta zone de navigation`, "/");
       }
     } catch (e) {}
     setSaving(false);
@@ -2082,6 +2107,30 @@ const startPicking = (target) => {
                           Activer
                         </button>
                       ) : null}
+                    </div>
+                  </Panel>
+
+                  <Panel className="p-4">
+                    <p className="text-sm" style={{ color: COLORS.text }}>Rayon d'alerte orques</p>
+                    <p className="text-xs mt-0.5 mb-2.5" style={{ color: COLORS.muted }}>
+                      Distance à partir de laquelle tu reçois une notification pour un nouveau signalement d'orques
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {ALERT_RADIUS_OPTIONS.map((km) => {
+                        const current = boats[profile.id]?.alertRadiusKm ?? DEFAULT_ALERT_RADIUS_KM;
+                        const active = current === km;
+                        return (
+                          <button key={km ?? "illimite"} onClick={() => updateAlertRadius(km)}
+                            className="text-xs px-3 py-1.5 rounded"
+                            style={{
+                              background: active ? COLORS.cyanDim : "transparent",
+                              color: active ? COLORS.cyan : COLORS.muted,
+                              border: `1px solid ${active ? COLORS.cyanDim : COLORS.border}`,
+                            }}>
+                            {km == null ? "Illimité" : `${km} km`}
+                          </button>
+                        );
+                      })}
                     </div>
                   </Panel>
 
