@@ -2491,7 +2491,7 @@ const startPicking = (target) => {
       {/* Chat et Profil ("Moi") : déplacés en haut à gauche, juste sous le bandeau
           "ROUTE DES ORQUES", toujours visibles (comme la barre du bas) plutôt que rangés
           avec les autres onglets en bas. */}
-      <div className="absolute z-[1200] flex" style={{ top: 72, left: 12, gap: 10 }}>
+      <div className="absolute z-[1200] flex-col" style={{ top: 72, left: 12, gap: 10 }}>
         <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={26} color="#8C7AE6" /></IconBtn>
         <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={26} color={COLORS.orange} /></IconBtn>
       </div>
