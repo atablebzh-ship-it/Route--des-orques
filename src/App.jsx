@@ -1571,6 +1571,19 @@ if (p) {
     reader.readAsText(file);
   };
 
+  // Ouvre automatiquement le détail d'un convoi si on arrive via un lien de partage
+  // (ex : routedesorques.fr/?convoi=ID), et nettoie l'URL ensuite.
+  useEffect(() => {
+    if (!profile) return;
+    const params = new URLSearchParams(window.location.search);
+    const convoyId = params.get("convoi");
+    if (convoyId) {
+      setTab("convois");
+      setExpandedConvoy(convoyId);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
   const applyImportedWaypoint = (w) => {
     if (importTarget === "onboarding") {
       setObLat(w.lat.toFixed(5));
@@ -2588,6 +2601,12 @@ const startPicking = (target) => {
                                 className="w-full py-1.5 rounded text-xs flex items-center justify-center gap-2"
                                 style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
                                 <Download size={12} /> Exporter le point de RDV en GPX
+                              </button>
+                              
+                              <button onClick={() => shareConvoy(cv)}
+                                className="w-full py-1.5 rounded text-xs flex items-center justify-center gap-2"
+                                style={{ color: COLORS.orange, border: `1px solid ${COLORS.orangeDim}` }}>
+                                <Share2 size={12} /> Partager le lien du convoi
                               </button>
                               {confirmed.map((m) => (
                                 <div key={m.boatId} className="flex items-center justify-between text-sm">
