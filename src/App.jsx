@@ -492,7 +492,7 @@ function IconBtn({ onClick, active, children, label }) {
   return (
            <button
           onClick={onClick}
-          className="flex flex-col items-center justify-center gap-1 px-3.5 py-3 rounded-full shadow-lg"
+          className="flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-full shadow-lg"
           style={{
             color: active ? COLORS.cyan : COLORS.text,
             /* Fond sombre uniforme (comme Observations) sur tous les boutons, actif ou non —
@@ -501,11 +501,11 @@ function IconBtn({ onClick, active, children, label }) {
             backdropFilter: "blur(12px)",
             border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
             opacity: active ? 1 : 0.85,
-            minWidth: 72,
+            minWidth: 52,
           }}
         >
       {children}
-      <span className="text-xs font-medium" style={{ fontFamily: "Inter, sans-serif" }}>{label}</span>
+      <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10 }} className="font-medium">{label}</span>
     </button>
   );
 }
@@ -2436,8 +2436,8 @@ const startPicking = (target) => {
           "ROUTE DES ORQUES", toujours visibles (comme la barre du bas) plutôt que rangés
           avec les autres onglets en bas. */}
       <div className="absolute z-[1200] flex" style={{ top: 72, left: 12, gap: 10 }}>
-        <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={51} color="#8C7AE6" /></IconBtn>
-        <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={51} color={COLORS.orange} /></IconBtn>
+        <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={26} color="#8C7AE6" /></IconBtn>
+        <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={26} color={COLORS.orange} /></IconBtn>
       </div>
 
       {/* Panneau flottant pour les onglets autres que la carte : la carte reste toujours
@@ -3006,7 +3006,7 @@ const startPicking = (target) => {
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
         <div className="relative flex" style={{ gap: 10 }}>
           {showLayersMenu && (
-            <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 78, left: "50%", transform: "translateX(-50%)", background: "rgba(34,56,74,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
+            <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 118, left: "50%", transform: "translateX(-50%)", background: "rgba(34,56,74,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
               <button onClick={() => setShowShipyards((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showShipyards ? 1 : 0.4 }}>
                 <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.green, border: "2px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🛠️</span>
                 <span className="text-xs" style={{ color: COLORS.text }}>Chantiers</span>
@@ -3029,18 +3029,18 @@ const startPicking = (target) => {
               redonne directement accès à la carte, sans détour par un onglet séparé. */}
           <IconBtn onClick={() => setTab(tab === "convois" ? "carte" : "convois")} active={tab === "convois"} label={t.tabConvois}>
             <span style={{ position: "relative", display: "inline-block" }}>
-              <SolidSailboatIcon size={44} color={COLORS.orange} />
+              <SolidSailboatIcon size={26} color={COLORS.orange} />
               {convoys.length > 0 && (
                 <span style={{
-                  position: "absolute", top: -8, right: -10, background: COLORS.orange, color: "#1A0E08",
-                  fontSize: 11, fontWeight: 500, borderRadius: 10, padding: "1px 6px", minWidth: 18, textAlign: "center",
-                  border: `2px solid ${COLORS.panel}`,
+                  position: "absolute", top: -6, right: -8, background: COLORS.orange, color: "#1A0E08",
+                  fontSize: 9, fontWeight: 500, borderRadius: 8, padding: "0px 4px", minWidth: 14, textAlign: "center",
+                  border: `1.5px solid ${COLORS.panel}`,
                 }}>{convoys.length}</span>
               )}
             </span>
           </IconBtn>
-          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={44} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
-          <IconBtn onClick={() => setShowLayersMenu((v) => !v)} active={showLayersMenu} label="Couches"><Layers size={40} color={COLORS.cyan} /></IconBtn>
+          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={26} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={() => setShowLayersMenu((v) => !v)} active={showLayersMenu} label="Couches"><Layers size={22} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
 
