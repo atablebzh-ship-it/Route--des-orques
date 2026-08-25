@@ -35,9 +35,9 @@ const FONTS = `
 }
 
 .leaflet-tooltip.orca-tooltip {
-  background: #0F1F38;
+  background: #22384A;
   color: #FFFFFF;
-  border: 2px solid #1E3A5F;
+  border: 2px solid #3A5A6E;
   font-family: 'Inter', sans-serif;
   font-size: 15px;
   font-weight: 600;
@@ -73,15 +73,15 @@ const FONTS = `
 /* Popups (bulle "Rejoindre le convoi" au clic sur un marqueur/tracé de convoi) — même
    habillage sombre que les tooltips .orca-tooltip pour rester cohérent avec le reste. */
 .leaflet-popup-content-wrapper {
-  background: #0F1F38;
+  background: #22384A;
   color: #FFFFFF;
-  border: 2px solid #1E3A5F;
+  border: 2px solid #3A5A6E;
   border-radius: 10px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.45);
 }
 .leaflet-popup-tip {
-  background: #0F1F38;
-  border: 2px solid #1E3A5F;
+  background: #22384A;
+  border: 2px solid #3A5A6E;
   box-shadow: none;
 }
 .leaflet-popup-content {
@@ -89,23 +89,25 @@ const FONTS = `
   font-family: 'Inter', sans-serif;
 }
 .leaflet-popup-close-button {
-  color: #E8EDF2 !important;
+  color: #F0F5F4 !important;
 }
 `;
 
 const COLORS = {
-  bg: "#0A1628",
-  panel: "#0F1F38",
-  panelAlt: "#12283F",
-  border: "#1E3A5F",
-  text: "#E8EDF2",
-  muted: "#6C87A6",
-  cyan: "#4FC3D9",
-  cyanDim: "#2C6B78",
-  orange: "#FF6B35",
-  orangeDim: "#7A3A1F",
-  green: "#4CAF7D",
-  greenDim: "#265C42",
+  bg: "#16283A",
+  panel: "#22384A",
+  panelAlt: "#2C4A5E",
+  border: "#3A5A6E",
+  text: "#F0F5F4",
+  muted: "#8DA6AC",
+  cyan: "#5FD0C4",
+  cyanDim: "#2E5C56",
+  orange: "#F2A65A",
+  orangeDim: "#5C3D1C",
+  green: "#6FE0B8",
+  greenDim: "#2C5A46",
+  red: "#E2504F",
+  redDim: "#5C2523",
 };
 
 const STALE_MS = 15 * 60 * 1000;
@@ -495,7 +497,7 @@ function IconBtn({ onClick, active, children, label }) {
             color: active ? COLORS.cyan : COLORS.text,
             /* Fond sombre uniforme (comme Observations) sur tous les boutons, actif ou non —
                seule la couleur de bordure/texte change pour indiquer l'état actif. */
-            background: "rgba(18,40,63,0.92)",
+            background: "rgba(34,56,74,0.92)",
             backdropFilter: "blur(12px)",
             border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
             opacity: active ? 1 : 0.85,
@@ -524,7 +526,7 @@ const inputStyle = {
 };
 
 // --- Curseur de sélection sur la carte : viseur épais et bien visible pendant le "Sur la carte" ---
-const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23FF6B35" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23FF6B35" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23FF6B35" stroke-width="5"/></svg>') 22 22, crosshair`;
+const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23F2A65A" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23F2A65A" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23F2A65A" stroke-width="5"/></svg>') 22 22, crosshair`;
 
 // Icône "élevage de poissons" : un filet suspendu entre deux perches (représente un parc
 // aquacole flottant), plutôt que l'emoji poisson générique. Version HTML brute (pour les
@@ -532,7 +534,7 @@ const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/
 const FISH_NET_SVG_HTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="1.6" stroke-linecap="round"><ellipse cx="4" cy="4" rx="2.2" ry="1.3" transform="rotate(-40 4 4)" fill="#000000" stroke="none"/><ellipse cx="20" cy="4" rx="2.2" ry="1.3" transform="rotate(40 20 4)" fill="#000000" stroke="none"/><ellipse cx="4" cy="20" rx="2.2" ry="1.3" transform="rotate(40 4 20)" fill="#000000" stroke="none"/><ellipse cx="20" cy="20" rx="2.2" ry="1.3" transform="rotate(-40 20 20)" fill="#000000" stroke="none"/><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="8.5" y1="5" x2="8.5" y2="19"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="15.5" y1="5" x2="15.5" y2="19"/><line x1="5" y1="8.5" x2="19" y2="8.5"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="15.5" x2="19" y2="15.5"/></svg>`;
 // Icône "voilier" pleine (silhouette solide, façon logo), plutôt que le tracé fin de l'icône
 // Sailboat de lucide-react — plus lisible en petite taille et personnalisable par couleur.
-function SolidSailboatIcon({ size = 16, color = "#4FC3D9", style }) {
+function SolidSailboatIcon({ size = 16, color = "#5FD0C4", style }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
       <path d="M12.5 2.5 L19 14.5 L12.5 14.5 Z" fill={color} />
@@ -661,13 +663,17 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         .addTo(layer);
     }
 
+    // Marqueurs utilisateurs : vert = actif, cyan = actif et dans ton convoi, rouge (estompé,
+    // pointillé) = inactif depuis plus de 15 min — bien plus visible que l'ancien gris,
+    // notamment sur fond de carte clair/satellite.
     others.forEach((b) => {
       if (b.lat == null || b.lon == null) return;
       const inMyConvoy = myConvoyMemberIds.includes(b.id);
-      const c = b.stale ? COLORS.muted : inMyConvoy ? COLORS.green : COLORS.cyan;
+      const c = b.stale ? COLORS.red : inMyConvoy ? COLORS.cyan : COLORS.green;
       const boatDesc = `${b.pseudo} · ${b.boatName}${b.stale ? " · inactif" : ""}`;
       window.L.circleMarker([b.lat, b.lon], {
-        radius: 10, color: c, fillColor: c, fillOpacity: b.stale ? 0.5 : 1, weight: 3,
+        radius: 10, color: c, fillColor: c, fillOpacity: b.stale ? 0.45 : 1, weight: 3,
+        dashArray: b.stale ? "4 3" : null,
       })
         .bindTooltip(boatDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
         .on("click", () => onSelectBoat && onSelectBoat(b))
@@ -786,13 +792,15 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
 
         // Aux deux extrémités (départ et arrivée), le tracé approche le port en ligne
         // approximative : il ne suit PAS le balisage nautique réel (chenal, bouées, feux).
-        // On distingue visuellement ces segments d'« approche » (fins, pointillés clairs)
-        // du « couloir » central (large, pointillés) pour rappeler qu'à l'approche des
-        // ports il faut suivre le balisage réel (voir la couche OpenSeaMap sur la carte).
+        // On distingue visuellement ces segments d'« approche » (fins, pointillés) du
+        // « couloir » central (large, trait plein) pour rappeler qu'à l'approche des ports
+        // il faut suivre le balisage réel (voir la couche OpenSeaMap sur la carte) — le
+        // couloir central, lui, est en trait plein pour un rendu plus lisible / moins
+        // "ligne de construction".
         // Ton convoi (noir) reste plus marqué que les convois qu'on peut rejoindre (cyan).
         const routeColor = isMine ? "#000000" : COLORS.cyan;
-        const approachStyle = { color: routeColor, weight: isMine ? 3 : 2.5, opacity: isMine ? 0.55 : 0.5, dashArray: "3 9", lineCap: "round" };
-        const corridorStyle = { color: routeColor, weight: isMine ? 5 : 4, opacity: isMine ? 0.9 : 0.75, dashArray: "12 10", lineCap: "round" };
+        const approachStyle = { color: routeColor, weight: isMine ? 3 : 2.5, opacity: isMine ? 0.6 : 0.5, dashArray: "4 8", lineCap: "round" };
+        const corridorStyle = { color: routeColor, weight: isMine ? 4 : 3, opacity: isMine ? 0.85 : 0.7, lineCap: "round" };
         const approachHeadline = "Approche du port · balisage nautique réel à suivre (voir bouées/chenal sur la carte)";
         const corridorHeadline = "Route du convoi (indicative)";
 
@@ -877,7 +885,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         const otherInfo = othersById[boatId];
         const inConvoy = myConvoyMemberIds.includes(boatId);
         const stale = otherInfo ? otherInfo.stale : false;
-        const color = isMe ? COLORS.orange : inConvoy ? COLORS.green : COLORS.cyan;
+        const color = isMe ? COLORS.orange : inConvoy ? COLORS.cyan : COLORS.green;
 
         const first = points[0];
         const last = points[points.length - 1];
@@ -1095,6 +1103,7 @@ export default function RouteDesOrques() {
   const [showShipyards, setShowShipyards] = useState(true);
   const [showFishFarms, setShowFishFarms] = useState(true);
   const [showRescueStations, setShowRescueStations] = useState(true);
+  const [showLayersMenu, setShowLayersMenu] = useState(false);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
   const [distUnit, setDistUnitState] = useState(() => {
@@ -2410,7 +2419,7 @@ const startPicking = (target) => {
 
       {/* Header flottant */}
       <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 py-3"
-        style={{ background: "rgba(10,22,40,0.82)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${COLORS.border}` }}>
+        style={{ background: "rgba(22,40,58,0.82)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${COLORS.border}` }}>
         <div className="flex items-center gap-2">
           <Compass size={22} style={{ color: COLORS.orange }} />
           <span className="font-semibold tracking-wide text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
@@ -2438,7 +2447,7 @@ const startPicking = (target) => {
         // bottom relevé (92 -> 138) : la barre du bas est bien plus haute depuis que ses icônes
         // ont grossi (~3x), l'ancienne valeur faisait coller/chevaucher le panneau avec elle.
         <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 138 }}>
-          <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "62vh", background: "rgba(15,31,56,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
+          <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "62vh", background: "rgba(34,56,74,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
             <div className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
               <span className="text-sm font-semibold tracking-wide" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
                 {tab === "convois" ? t.tabConvois : tab === "alerts" ? t.tabAlerts : tab === "chat" ? t.tabChat : t.tabProfile}
@@ -2990,37 +2999,48 @@ const startPicking = (target) => {
         </div>
       )}
 
-      {/* Barre d'onglets flottante : Convois et Observations (ouvrent un panneau par-dessus
-          la carte) + les 3 filtres de calques (chantiers navals / secours / zones de pêche),
-          désormais alignés ici dans le même esprit que les autres — même style de bouton,
-          même taille — plutôt que dans leur ancien bandeau séparé à gauche de la carte. */}
+      {/* Barre d'onglets flottante — Option B : 2 onglets principaux (Convois avec compteur,
+          Observations) + un bouton "Couches" qui ouvre un petit menu regroupant les 3 filtres
+          de calques (chantiers navals / secours / zones de pêche), au lieu de 5 boutons fixes.
+          Ça libère de la place en bas sur mobile. */}
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
-       <div className="flex" style={{ gap: 10, maxWidth: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div className="relative flex" style={{ gap: 10 }}>
+          {showLayersMenu && (
+            <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 78, left: "50%", transform: "translateX(-50%)", background: "rgba(34,56,74,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
+              <button onClick={() => setShowShipyards((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showShipyards ? 1 : 0.4 }}>
+                <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.green, border: "2px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🛠️</span>
+                <span className="text-xs" style={{ color: COLORS.text }}>Chantiers</span>
+              </button>
+              <button onClick={() => setShowRescueStations((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showRescueStations ? 1 : 0.4 }}>
+                <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.orange, border: "2px solid #4A2409", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🛟</span>
+                <span className="text-xs" style={{ color: COLORS.text }}>Secours</span>
+              </button>
+              <button onClick={() => setShowFishFarms((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showFishFarms ? 1 : 0.4 }}>
+                <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.cyan, border: "2px solid #0A2E33", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <FishNetIcon size={19} color="#000000" />
+                </span>
+                <span className="text-xs" style={{ color: COLORS.text }}>Élevage</span>
+              </button>
+            </div>
+          )}
           {/* Plus d'onglet "Carte" dédié : la carte est la vue de base, toujours visible en
               fond. Chaque bouton ci-dessous ouvre son panneau par-dessus la carte ; retaper
               sur le bouton déjà actif (ou le bouton fermer du panneau) referme le panneau et
               redonne directement accès à la carte, sans détour par un onglet séparé. */}
           <IconBtn onClick={() => setTab(tab === "convois" ? "carte" : "convois")} active={tab === "convois"} label={t.tabConvois}>
-            <span style={{ position: "relative", width: 66, height: 51, display: "inline-block" }}>
-              <SolidSailboatIcon size={42} color={COLORS.orange} style={{ position: "absolute", left: 0, bottom: 0 }} />
-              <SolidSailboatIcon size={51} color={COLORS.green} style={{ position: "absolute", right: 0, top: 0 }} />
+            <span style={{ position: "relative", display: "inline-block" }}>
+              <SolidSailboatIcon size={44} color={COLORS.orange} />
+              {convoys.length > 0 && (
+                <span style={{
+                  position: "absolute", top: -8, right: -10, background: COLORS.orange, color: "#1A0E08",
+                  fontSize: 11, fontWeight: 500, borderRadius: 10, padding: "1px 6px", minWidth: 18, textAlign: "center",
+                  border: `2px solid ${COLORS.panel}`,
+                }}>{convoys.length}</span>
+              )}
             </span>
           </IconBtn>
-          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={51} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
-          {/* Ces 3 boutons reprennent exactement le motif de leur marqueur sur la carte (même
-              couleur de bulle, même icône) pour qu'on associe tout de suite le bouton au
-              marqueur qu'il affiche/masque. */}
-          <IconBtn onClick={() => setShowShipyards((v) => !v)} active={showShipyards} label="Chantiers">
-            <span style={{ width: 44, height: 44, borderRadius: "50%", background: COLORS.green, border: "3px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, lineHeight: 1 }}>🛠️</span>
-          </IconBtn>
-          <IconBtn onClick={() => setShowRescueStations((v) => !v)} active={showRescueStations} label="Secours">
-            <span style={{ width: 44, height: 44, borderRadius: "50%", background: COLORS.orange, border: "3px solid #4A2409", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, lineHeight: 1 }}>🛟</span>
-          </IconBtn>
-          <IconBtn onClick={() => setShowFishFarms((v) => !v)} active={showFishFarms} label="Élevage">
-            <span style={{ width: 44, height: 44, borderRadius: "50%", background: COLORS.cyan, border: "3px solid #0A2E33", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <FishNetIcon size={24} color="#000000" />
-            </span>
-          </IconBtn>
+          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={44} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={() => setShowLayersMenu((v) => !v)} active={showLayersMenu} label="Couches"><Layers size={40} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
 
@@ -3261,6 +3281,62 @@ const startPicking = (target) => {
               </Field>
               <button onClick={createConvoy} className="w-full py-2.5 rounded font-medium text-sm" style={{ background: COLORS.orange, color: "#1A0E08" }}>
                 Créer le convoi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fiche contact : s'ouvre au clic sur un bateau (marqueur carte ou liste), avec sa
+          dernière position, son statut, un raccourci Message (fil DM) et un raccourci pour
+          le recentrer sur la carte. */}
+      {selectedBoat && (
+        <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedBoat(null)}>
+          <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div style={{ width: 46, height: 46, borderRadius: "50%", background: COLORS.cyanDim, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 500, fontSize: 15, color: COLORS.text }}>
+                  {selectedBoat.pseudo.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: COLORS.text }}>{selectedBoat.pseudo}</p>
+                  <p className="text-xs" style={{ color: COLORS.muted }}>{selectedBoat.boatName}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedBoat(null)}><X size={18} style={{ color: COLORS.muted }} /></button>
+            </div>
+            <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+              {selectedBoat.dist != null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: COLORS.muted }}>Position</span>
+                  <span style={{ color: COLORS.text }}>{fmtDist(selectedBoat.dist, distUnit)} · cap {Math.round(selectedBoat.brg)}°</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm">
+                <span style={{ color: COLORS.muted }}>Statut</span>
+                <span style={{ color: COLORS.text }}>
+                  {selectedBoat.status === "en_route" ? "En route" : selectedBoat.status === "ancre" ? "À l'ancre" : "À quai"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span style={{ color: COLORS.muted }}>Dernière position</span>
+                <span style={{ color: selectedBoat.stale ? COLORS.red : COLORS.text }}>{timeAgo(selectedBoat.updatedAt)}</span>
+              </div>
+              {myConvoy && myConvoyMemberIds.includes(selectedBoat.id) && (
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: COLORS.muted }}>Convoi commun</span>
+                  <span style={{ color: COLORS.cyan }}>{myConvoy.name}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { openDmWith(selectedBoat.id); setSelectedBoat(null); }}
+                className="flex-1 py-2 rounded text-sm font-medium" style={{ background: "rgba(140,122,230,0.2)", color: "#8C7AE6", border: "1px solid #8C7AE6" }}>
+                Message
+              </button>
+              <button onClick={() => { setAlertFocus({ lat: selectedBoat.lat, lon: selectedBoat.lon, id: `boat-${selectedBoat.id}`, ts: Date.now() }); setSelectedBoat(null); setTab("carte"); }}
+                className="flex-1 py-2 rounded text-sm font-medium" style={{ background: "transparent", color: COLORS.cyan, border: `1px solid ${COLORS.cyanDim}` }}>
+                Voir sur la carte
               </button>
             </div>
           </div>
