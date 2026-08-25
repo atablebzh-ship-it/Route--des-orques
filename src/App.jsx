@@ -2449,14 +2449,29 @@ const startPicking = (target) => {
 
       {/* Sélecteur de fond de carte : un seul bouton style Google Maps (carte claire + libellé du
           mode vers lequel on bascule), plus visible que l'ancienne paire de pastilles sombres. */}
-      {tab === "carte" && (
-        <button onClick={() => setMapStyle(mapStyle === "satellite" ? "street" : "satellite")}
-          className="absolute z-[1150] flex items-center gap-2 px-3.5 py-2.5 rounded-lg shadow-lg font-medium text-sm"
-          style={{ top: 72, right: 12, background: "#FFFFFF", color: "#1A1A1A", border: "1px solid rgba(0,0,0,0.15)" }}>
-          <Layers size={18} />
-          {mapStyle === "satellite" ? "Carte" : "Satellite"}
-        </button>
-      )}
+      
+      {tab === "carte" && (() => {
+        const nearestAlert = alertsWithDist.length
+          ? alertsWithDist.reduce((best, a) => (a.dist != null && (best == null || a.dist < best.dist) ? a : best), null)
+          : null;
+        return (
+          <div className="absolute z-[1150] rounded-lg shadow-lg px-3.5 py-2.5 text-xs"
+            style={{ top: 72, left: "50%", transform: "translateX(-50%)", background: "rgba(34,56,74,0.92)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.cyanDim}`, color: COLORS.text, minWidth: 220 }}>
+            <div className="flex items-center gap-1.5">
+              <span>{nearestAlert ? speciesInfo(nearestAlert.species || "orque").emoji : "🐋"}</span>
+              <span>
+                {nearestAlert
+                  ? `${fmtDist(nearestAlert.dist, distUnit)} · ${timeAgo(nearestAlert.createdAt)}`
+                  : "Aucune alerte récente"}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="flex items-center gap-1"><Users size={12} /> {activeCount} actif{activeCount > 1 ? "s" : ""}</span>
+              <span className="flex items-center gap-1"><SolidSailboatIcon size={12} color={COLORS.orange} /> {convoys.length} convoi{convoys.length > 1 ? "s" : ""}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Header flottant */}
       <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 py-3"
