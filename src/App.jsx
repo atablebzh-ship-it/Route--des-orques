@@ -2106,7 +2106,21 @@ const startPicking = (target) => {
     downloadGPX(buildGPX(wpts), `convoi-${cv.id}.gpx`);
   };
 
-  const shareApp = async () => {
+ const shareConvoy = async (cv) => {
+    const shareData = {
+      title: `Convoi : ${cv.name}`,
+      text: `Rejoins le convoi "${cv.name}" sur La Route des Orques !`,
+      url: `${window.location.origin}/?convoi=${cv.id}`,
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch (e) {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareData.url);
+        window.alert("Lien du convoi copié dans le presse-papiers !");
+      } catch (e) {}
+    }
+  }; const shareApp = async () => {
     const shareData = {
       title: "La Route des Orques",
       text: "Rejoins-moi sur La Route des Orques pour partager ta position, être alerté des orques et naviguer en convoi avec d'autres plaisanciers !",
