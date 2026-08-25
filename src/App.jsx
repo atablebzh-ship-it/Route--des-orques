@@ -1,6 +1,6 @@
 import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers } from "lucide-react";
+import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers, Share2 } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
 
 const FONTS = `
@@ -2106,6 +2106,21 @@ const startPicking = (target) => {
     downloadGPX(buildGPX(wpts), `convoi-${cv.id}.gpx`);
   };
 
+  const shareApp = async () => {
+    const shareData = {
+      title: "La Route des Orques",
+      text: "Rejoins-moi sur La Route des Orques pour partager ta position, être alerté des orques et naviguer en convoi avec d'autres plaisanciers !",
+      url: "https://routedesorques.fr",
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch (e) {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+        window.alert("Lien copié dans le presse-papiers !");
+      } catch (e) {}
+    }
+  };
   const proposeConvoyViaChat = (boat) => {
     setChatText(`${profile.pseudo} propose de naviguer avec ${boat.pseudo} (${boat.boatName}) — rejoins un convoi dans l'onglet Convois ou on se cale ici.`);
     setTab("chat");
@@ -2783,6 +2798,11 @@ const startPicking = (target) => {
                     {session?.user?.email && <p className="text-xs mt-1" style={{ color: COLORS.muted }}>{session.user.email}</p>}
                     {pos && <p className="text-xs mt-2" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>{pos.lat.toFixed(5)}, {pos.lon.toFixed(5)}</p>}
                   </Panel>
+                  
+                  <button onClick={shareApp} className="w-full py-2.5 rounded font-medium text-sm flex items-center justify-center gap-2"
+                    style={{ background: COLORS.cyan, color: "#0A2E33" }}>
+                    <Share2 size={16} /> Inviter un ami
+                  </button>
 
                   <Panel className="p-4">
                     <div className="flex items-center justify-between">
