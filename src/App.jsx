@@ -2378,8 +2378,10 @@ const startPicking = (target) => {
               {t.onboardingDisclaimer}
             </p>
           </Panel>
-        </div>
-        {renderHiddenFileInput()}
+        </div>            
+          </div>
+          </div>
+          {renderHiddenFileInput()}
         {renderImportModal()}
       </div>
     );
