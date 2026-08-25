@@ -2298,10 +2298,34 @@ const startPicking = (target) => {
     );
   }
 
-  if (!profile) {
+   if (!profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif" }}>
+      <div className="relative overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif", position: "fixed", inset: 0 }}>
         <style>{FONTS}</style>
+        <div className="absolute inset-0">
+          <MarineMap
+            pos={null}
+            others={[]}
+            alertsWithDist={[]}
+            convoys={[]}
+            myConvoyMemberIds={[]}
+            now={Date.now()}
+            onSelectBoat={() => {}}
+            showShipyards={true}
+            showRescueStations={true}
+            showFishFarms={false}
+            pickMode={false}
+            onPickLocation={() => {}}
+            trails={{}}
+            showTrails={false}
+            myBoatId={null}
+            focusTarget={null}
+            mapStyle="street"
+            onJoinConvoy={() => {}}
+          />
+        </div>
+        <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 20 }}>
+        <div className="w-full max-w-sm rounded-xl p-5" style={{ background: "rgba(34,56,74,0.96)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}`, maxHeight: "78vh", overflowY: "auto" }}>
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 mb-2">
             <Compass size={30} style={{ color: COLORS.orange }} />
