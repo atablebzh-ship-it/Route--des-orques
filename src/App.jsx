@@ -416,6 +416,23 @@ function fmtDateTime(iso) {
   }
 }
 
+// Les dates de convoi (départ/arrivée) sont prévisionnelles et dépendent de la météo — on
+// affiche donc une fourchette autour de la date renseignée plutôt qu'une date figée, pour ne
+// pas donner une fausse impression de précision.
+const CONVOY_DATE_MARGIN_DAYS = 3;
+function fmtDateRange(iso, marginDays = CONVOY_DATE_MARGIN_DAYS) {
+  if (!iso) return "—";
+  try {
+    const center = new Date(iso);
+    const from = new Date(center.getTime() - marginDays * 86400000);
+    const to = new Date(center.getTime() + marginDays * 86400000);
+    const opts = { day: "2-digit", month: "2-digit" };
+    return `${from.toLocaleDateString("fr-FR", opts)} – ${to.toLocaleDateString("fr-FR", opts)}`;
+  } catch (e) {
+    return fmtDateTime(iso);
+  }
+}
+
 // --- Export GPX : format standard lu par OpenCPN, Navionics, Garmin, qaRte, SeaNav, etc. ---
 function escapeXml(str) {
   return String(str ?? "").replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
@@ -584,14 +601,14 @@ function FishNetIcon({ size = 20, color = "#000000" }) {
 }
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onSelectPlace, onSelectConvoyMarker }) {
+function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, focusTarget, mapStyle, onSelectPlace, onSelectConvoyMarker, onSelectAlert }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
   const onPickLocationRef = useRef(onPickLocation);
   const onSelectPlaceRef = useRef(onSelectPlace);
   const onSelectConvoyMarkerRef = useRef(onSelectConvoyMarker);
-  const onDeleteAlertRef = useRef(onDeleteAlert);
+  const onSelectAlertRef = useRef(onSelectAlert);
   const alertMarkersRef = useRef({});
   const baseLayerRef = useRef(null);
   const labelsLayerRef = useRef(null);
@@ -599,7 +616,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
   useEffect(() => { onSelectPlaceRef.current = onSelectPlace; }, [onSelectPlace]);
   useEffect(() => { onSelectConvoyMarkerRef.current = onSelectConvoyMarker; }, [onSelectConvoyMarker]);
-  useEffect(() => { onDeleteAlertRef.current = onDeleteAlert; }, [onDeleteAlert]);
+  useEffect(() => { onSelectAlertRef.current = onSelectAlert; }, [onSelectAlert]);
 
   useEffect(() => {
     if (!mapElRef.current || mapRef.current || !window.L) return;
@@ -713,32 +730,13 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
-      const alertDesc = `
-        <div class="orca-tooltip-title">${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} ${a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}</div>
-        <div class="orca-tooltip-meta">${fmtDateTime(new Date(a.createdAt).toISOString())} · ${a.author}</div>
-        <div class="orca-tooltip-meta">${a.lat.toFixed(4)}, ${a.lon.toFixed(4)}</div>
-        ${a.notes ? `<div class="orca-tooltip-notes">${a.notes}</div>` : ""}
-      `;
+      // Un seul clic ouvre la mini-fenêtre (plus de bulle au survol en plus de la fenêtre au
+      // clic : les deux s'affichaient en même temps sur les logos d'espèces, notamment orques).
       const alertMarker = window.L.marker([a.lat, a.lon], { icon: speciesIcon })
-        .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+        .on("click", () => onSelectAlertRef.current && onSelectAlertRef.current(a))
         .addTo(layer);
 
-      // Suppression directement depuis la carte : un clic ouvre une bulle avec un bouton
-      // "Supprimer", visible pour l'auteur du signalement ou pour un modérateur.
-      const canDelete = myBoatId && (a.authorId === myBoatId || isModerator);
-      if (canDelete) {
-        const popupHtml = `${alertDesc}<button id="del-alert-${a.id}" style="margin-top:8px;width:100%;padding:8px 10px;border-radius:6px;border:none;background:${COLORS.red};color:#FFFFFF;font-weight:600;font-size:13px;cursor:pointer;">Supprimer ce signalement</button>`;
-        alertMarker.bindPopup(popupHtml, { className: "orca-tooltip", maxWidth: 240 });
-        alertMarker.on("popupopen", () => {
-          const btn = document.getElementById(`del-alert-${a.id}`);
-          if (btn) btn.onclick = () => {
-            alertMarker.closePopup();
-            onDeleteAlertRef.current && onDeleteAlertRef.current(a.id);
-          };
-        });
-      }
-
-      alertMarkersRef.current[a.id] = alertMarker;
+      alertMarkersRef.current[a.id] = { marker: alertMarker, alert: a };
     });
 
     // Tous les convois avec un point de RDV s'affichent sur la carte (pas seulement le
@@ -923,8 +921,8 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     const map = mapRef.current;
     if (!map || !focusTarget || focusTarget.lat == null || focusTarget.lon == null) return;
     map.setView([focusTarget.lat, focusTarget.lon], Math.max(map.getZoom(), 12), { animate: true });
-    const marker = alertMarkersRef.current[focusTarget.id];
-    if (marker) marker.openTooltip();
+    const entry = alertMarkersRef.current[focusTarget.id];
+    if (entry) onSelectAlertRef.current && onSelectAlertRef.current(entry.alert);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget]);
 
@@ -980,6 +978,7 @@ const TRANSLATIONS = {
     etaLabel: "Arrivée prévue",
     approxPosition: "Position approximative — voir sources officielles pour le cadastre complet",
     closeLabel: "Fermer",
+    weatherMarginNote: "Dates à ± 3 jours selon la météo",
   },
   en: {
     loginTagline: "Sign in with a magic link — no password to remember.",
@@ -1017,6 +1016,7 @@ const TRANSLATIONS = {
     etaLabel: "Expected arrival",
     approxPosition: "Approximate position — see official sources for the full register",
     closeLabel: "Close",
+    weatherMarginNote: "Dates ± 3 days depending on weather",
   },
   es: {
     loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
@@ -1054,6 +1054,7 @@ const TRANSLATIONS = {
     etaLabel: "Llegada prevista",
     approxPosition: "Posición aproximada — consulta las fuentes oficiales para el registro completo",
     closeLabel: "Cerrar",
+    weatherMarginNote: "Fechas ± 3 días según el tiempo",
   },
   pt: {
     loginTagline: "Entrar com link mágico — sem senha para lembrar.",
@@ -1091,6 +1092,7 @@ const TRANSLATIONS = {
     etaLabel: "Chegada prevista",
     approxPosition: "Posição aproximada — ver fontes oficiais para o registo completo",
     closeLabel: "Fechar",
+    weatherMarginNote: "Datas ± 3 dias consoante o tempo",
   },
 };
 
@@ -1181,6 +1183,7 @@ export default function RouteDesOrques() {
   // un point d'intérêt (chantier/secours/élevage) ou un marqueur/tracé de convoi cliqué.
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [selectedConvoyMarker, setSelectedConvoyMarker] = useState(null);
+  const [selectedAlert, setSelectedAlert] = useState(null);
   const [expandedConvoy, setExpandedConvoy] = useState(null);
   const [geoError, setGeoError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -2572,11 +2575,11 @@ const startPicking = (target) => {
                 showTrails={showTrails}
                 myBoatId={profile.id}
                 isModerator={!!profile.isModerator}
-                onDeleteAlert={deleteAlert}
                 focusTarget={alertFocus}
                 mapStyle={mapStyle}
                 onSelectPlace={setSelectedPlace}
                 onSelectConvoyMarker={setSelectedConvoyMarker}
+                onSelectAlert={setSelectedAlert}
               />
       </div>
 
@@ -3560,6 +3563,46 @@ const startPicking = (target) => {
         </div>
       )}
 
+      {/* Fiche observation/incident cliqué sur la carte (marqueur d'espèce, orques compris) :
+          avant, un clic pouvait afficher à la fois la bulle au survol ET la fenêtre de
+          suppression — désormais un seul clic, une seule mini-fenêtre. */}
+      {selectedAlert && (() => {
+        const a = selectedAlert;
+        const sp = speciesInfo(a.species || "orque");
+        const canDelete = profile && (a.authorId === profile.id || profile.isModerator);
+        return (
+          <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedAlert(null)}>
+            <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span style={{ fontSize: 26 }}>{sp.emoji}</span>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: COLORS.text }}>
+                      {a.incident ? "⚠️ Incident" : "Observation"} · {a.count} {a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}
+                    </p>
+                    <p className="text-xs" style={{ color: COLORS.muted }}>{fmtDateTime(new Date(a.createdAt).toISOString())} · {a.author}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedAlert(null)}><X size={18} style={{ color: COLORS.muted }} /></button>
+              </div>
+              <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                <div className="text-sm" style={{ color: COLORS.text }}>{a.lat.toFixed(4)}, {a.lon.toFixed(4)}</div>
+                {a.notes && <div className="text-sm" style={{ color: COLORS.muted }}>{a.notes}</div>}
+              </div>
+              {canDelete && (
+                <button
+                  onClick={() => { deleteAlert(a.id); setSelectedAlert(null); }}
+                  className="w-full mt-4 py-2 rounded text-sm font-medium"
+                  style={{ background: COLORS.red, color: "#FFFFFF" }}
+                >
+                  Supprimer ce signalement
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Fiche convoi cliqué sur la carte (repère RDV/destination ou tracé du couloir) : même
           habillage mini-fenêtre que le reste, avec les dates de départ/arrivée du convoi. */}
       {selectedConvoyMarker && (
@@ -3581,14 +3624,17 @@ const startPicking = (target) => {
               {selectedConvoyMarker.convoy.departureAt && (
                 <div className="flex items-center justify-between text-sm">
                   <span style={{ color: COLORS.muted }}>{t.departureLabel}</span>
-                  <span style={{ color: COLORS.text }}>{fmtDateTime(selectedConvoyMarker.convoy.departureAt)}</span>
+                  <span style={{ color: COLORS.text }}>{fmtDateRange(selectedConvoyMarker.convoy.departureAt)}</span>
                 </div>
               )}
               {selectedConvoyMarker.convoy.etaAt && (
                 <div className="flex items-center justify-between text-sm">
                   <span style={{ color: COLORS.muted }}>{t.etaLabel}</span>
-                  <span style={{ color: COLORS.text }}>{fmtDateTime(selectedConvoyMarker.convoy.etaAt)}</span>
+                  <span style={{ color: COLORS.text }}>{fmtDateRange(selectedConvoyMarker.convoy.etaAt)}</span>
                 </div>
+              )}
+              {(selectedConvoyMarker.convoy.departureAt || selectedConvoyMarker.convoy.etaAt) && (
+                <div className="text-xs" style={{ color: COLORS.muted }}>{t.weatherMarginNote}</div>
               )}
             </div>
             {selectedConvoyMarker.isMine ? (
