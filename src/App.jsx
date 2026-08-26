@@ -1308,14 +1308,20 @@ if (p) {
     })();
   }, [session]);
 
-  // --- Notifications push ---
+  // --- Notifications push + e-mail (Resend) ---
   const sendPush = useCallback(async (boatIds, title, body, url) => {
     try {
       const ids = (boatIds || []).filter((id) => id && id !== profile?.id);
       if (ids.length === 0) return;
       await supabase.functions.invoke("send-push", { body: { boatIds: ids, title, body, url } });
+      // E-mail via Resend : uniquement les bateaux ayant coché "Recevoir aussi par e-mail"
+      // dans leurs préférences (onglet Moi). Envoi best-effort, ne bloque jamais le push.
+      const emailIds = ids.filter((id) => boats[id]?.notifyEmail);
+      if (emailIds.length) {
+        supabase.functions.invoke("send-email", { body: { boatIds: emailIds, title, body, url } }).catch(() => {});
+      }
     } catch (e) {}
-  }, [profile]);
+  }, [profile, boats]);
 
   const checkPushStatus = useCallback(async () => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -1401,6 +1407,8 @@ if (p) {
             notifyConvoys: b.notify_convoys === false ? false : true,
             notifyConvoyActivity: b.notify_convoy_activity === false ? false : true,
             notifyMessages: b.notify_messages === false ? false : true,
+            // E-mail (Resend) : contrairement au push, c'est un opt-in — false par défaut.
+            notifyEmail: !!b.notify_email,
           };
         });
         setBoats(map);
@@ -1505,6 +1513,7 @@ if (p) {
               notifyConvoys: prev[profile.id]?.notifyConvoys ?? true,
               notifyConvoyActivity: prev[profile.id]?.notifyConvoyActivity ?? true,
               notifyMessages: prev[profile.id]?.notifyMessages ?? true,
+              notifyEmail: prev[profile.id]?.notifyEmail ?? false,
             },
           }));
         }
@@ -1531,6 +1540,7 @@ if (p) {
     notifyConvoys: "notify_convoys",
     notifyConvoyActivity: "notify_convoy_activity",
     notifyMessages: "notify_messages",
+    notifyEmail: "notify_email",
   };
   const updateNotifyPref = async (field, value) => {
     if (!profile) return;
@@ -2985,6 +2995,12 @@ const startPicking = (target) => {
                       sub="Quand un autre utilisateur t'envoie un message"
                       value={boats[profile.id]?.notifyMessages !== false}
                       onToggle={() => updateNotifyPref("notifyMessages", !(boats[profile.id]?.notifyMessages !== false))}
+                    />
+                    <ToggleRow
+                      label="Recevoir aussi par e-mail"
+                      sub={session?.user?.email ? `Envoyé à ${session.user.email}, en plus du push` : "Envoyé à ton adresse de connexion, en plus du push"}
+                      value={!!boats[profile.id]?.notifyEmail}
+                      onToggle={() => updateNotifyPref("notifyEmail", !boats[profile.id]?.notifyEmail)}
                     />
                   </Panel>
 
