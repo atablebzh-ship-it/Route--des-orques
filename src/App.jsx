@@ -387,15 +387,31 @@ function computeSeaRoute(a, b) {
   const iB = nearestLaneIndex(b.lat, b.lon);
   const start = { lat: a.lat, lon: a.lon };
   const end = { lat: b.lat, lon: b.lon };
-  // Les deux points se rattachent au même repère du couloir (ex : RDV et destination de part et
-  // d'autre d'une presqu'île/ria, comme à Ferrol) : on route quand même via ce point au large plutôt
-  // que de tracer une ligne droite qui peut couper à travers la terre.
-  if (iA === iB) return [start, SEA_LANE[iA], end];
-  const step = iA < iB ? 1 : -1;
-  const middle = [];
-  for (let i = iA; i !== iB; i += step) middle.push(SEA_LANE[i]);
-  middle.push(SEA_LANE[iB]);
-  return [start, ...middle, end];
+  let path;
+  if (iA === iB) {
+    // Les deux points se rattachent au même repère du couloir (ex : RDV et destination de part
+    // et d'autre d'une presqu'île/ria, comme à Ferrol) : on route quand même via ce point au
+    // large plutôt que de tracer une ligne droite qui peut couper à travers la terre.
+    path = [start, SEA_LANE[iA], end];
+  } else {
+    const step = iA < iB ? 1 : -1;
+    const middle = [];
+    for (let i = iA; i !== iB; i += step) middle.push(SEA_LANE[i]);
+    middle.push(SEA_LANE[iB]);
+    path = [start, ...middle, end];
+  }
+  // Pour deux points proches (ex. des étapes de convoi rapprochées le long de la côte), router
+  // systématiquement via le couloir maritime peut créer un détour disproportionné en zigzag —
+  // le repère de couloir le plus proche de chaque point n'est pas forcément sur le chemin entre
+  // les deux. Sur une aussi courte distance, il n'y a en général pas de terre significative à
+  // contourner : si le détour ajoute beaucoup plus que la distance directe, on trace tout droit.
+  const directDist = distanceKm(a.lat, a.lon, b.lat, b.lon);
+  let pathDist = 0;
+  for (let i = 1; i < path.length; i++) {
+    pathDist += distanceKm(path[i - 1].lat, path[i - 1].lon, path[i].lat, path[i].lon);
+  }
+  if (pathDist > directDist * 1.5 + 20) return [start, end];
+  return path;
 }
 
 function timeAgo(ts) {
