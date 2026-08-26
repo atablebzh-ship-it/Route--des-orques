@@ -1860,6 +1860,7 @@ if (p) {
       setAlertLat(null);
       setAlertLon(null);
       setShowAlertForm(false);
+      setShowLayersMenu(false);
       setTab("alerts");
     } catch (e) {}
     setSaving(false);
@@ -1888,6 +1889,7 @@ if (p) {
   const openDmWith = (boatId) => {
     if (!boatId || boatId === profile.id) return;
     setActiveDmPeerId(boatId);
+    setShowLayersMenu(false);
     setTab("chat");
   };
 
@@ -1958,6 +1960,7 @@ if (p) {
       setCvName(""); setCvRdv(""); setCvRdvLat(null); setCvRdvLon(null);
       setCvDeparture(""); setCvDest(""); setCvDestLat(null); setCvDestLon(null); setCvEta("");
       setShowConvoyForm(false);
+      setShowLayersMenu(false);
       setTab("convois");
     } catch (e) {}
     setSaving(false);
@@ -1973,6 +1976,7 @@ if (p) {
     setShowAlertForm(true);
   } else {
     setShowConvoyForm(true);
+    setShowLayersMenu(false);
     setTab("convois");
   }
 };
@@ -1981,6 +1985,7 @@ const startPicking = (target) => {
   setPickTarget(target);
   setShowConvoyForm(false);
   setShowAlertForm(false);
+  setShowLayersMenu(false);
   setTab("carte");
 };const openConvoyForm = () => {
     setCvRdvLat(pos?.lat ?? null);
@@ -2160,6 +2165,7 @@ const startPicking = (target) => {
   };
   const proposeConvoyViaChat = (boat) => {
     setChatText(`${profile.pseudo} propose de naviguer avec ${boat.pseudo} (${boat.boatName}) — rejoins un convoi dans l'onglet Convois ou on se cale ici.`);
+    setShowLayersMenu(false);
     setTab("chat");
   };
 
@@ -2468,6 +2474,18 @@ const startPicking = (target) => {
     requestJoin(convoyId);
   };
 
+  // Le panneau d'onglet (Convois/Observations/Chat/Moi) et le menu "Couches" occupent la même
+  // zone en bas de l'écran — les ouvrir en même temps les faisait se chevaucher. On garantit
+  // maintenant qu'un seul des deux est ouvert à la fois : ouvrir l'un ferme l'autre.
+  const openTab = (name) => {
+    setShowLayersMenu(false);
+    setTab((prev) => (prev === name ? "carte" : name));
+  };
+  const toggleLayersMenu = () => {
+    setTab("carte");
+    setShowLayersMenu((v) => !v);
+  };
+
     return (
    <div className="relative overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif", position: "fixed", inset: 0 }}>
       <style>{FONTS}</style>
@@ -2542,8 +2560,8 @@ const startPicking = (target) => {
           avec les autres onglets en bas. Icônes seules (sans libellé) pour rester compacts
           sur mobile — le nom de l'onglet reste accessible via l'attribut title/aria-label. */}
       <div className="absolute z-[1200] flex flex-col" style={{ top: 72, left: 12, gap: 10 }}>
-        <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
-        <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={20} color={COLORS.orange} /></IconBtn>
+        <IconBtn onClick={() => openTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
+        <IconBtn onClick={() => openTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={20} color={COLORS.orange} /></IconBtn>
       </div>
 
       {/* Panneau flottant pour les onglets autres que la carte : la carte reste toujours
@@ -3144,7 +3162,7 @@ const startPicking = (target) => {
               fond. Chaque bouton ci-dessous ouvre son panneau par-dessus la carte ; retaper
               sur le bouton déjà actif (ou le bouton fermer du panneau) referme le panneau et
               redonne directement accès à la carte, sans détour par un onglet séparé. */}
-          <IconBtn onClick={() => setTab(tab === "convois" ? "carte" : "convois")} active={tab === "convois"} label={`${t.tabConvois} (${visibleConvoys.length})`}>
+          <IconBtn onClick={() => openTab("convois")} active={tab === "convois"} label={`${t.tabConvois} (${visibleConvoys.length})`}>
             <span style={{ position: "relative", display: "inline-block" }}>
               <SolidSailboatIcon size={20} color={COLORS.orange} />
               {visibleConvoys.length > 0 && (
@@ -3156,8 +3174,8 @@ const startPicking = (target) => {
               )}
             </span>
           </IconBtn>
-          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={20} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
-          <IconBtn onClick={() => setShowLayersMenu((v) => !v)} active={showLayersMenu} label="Couches"><Layers size={18} color={COLORS.cyan} /></IconBtn>
+          <IconBtn onClick={() => openTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={20} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={toggleLayersMenu} active={showLayersMenu} label="Couches"><Layers size={18} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
 
