@@ -693,16 +693,18 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const sp = speciesInfo(a.species || "orque");
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
-      // Les orques restent l'espèce phare de l'appli : marqueur plus grand et rendu noir et blanc
-      // (comme leur robe réelle), pour rester repérable en un coup d'œil parmi les autres espèces.
+      // Les orques restent l'espèce phare de l'appli : marqueur plus grand, rendu en noir et
+      // blanc contrasté (contraste très poussé pour que les zones grises de l'emoji ressortent
+      // en noir franc plutôt qu'en gris terne) pour rester repérable en un coup d'œil.
       const isOrca = (a.species || "orque") === "orque";
       const size = isOrca ? (isRecent ? 54 : 40) : (isRecent ? 42 : 30);
       const fontSize = isOrca ? (isRecent ? 40 : 28) : (isRecent ? 30 : 20);
       const filterCss = isOrca
-        ? `grayscale(1) contrast(1.25) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
+        ? `grayscale(1) contrast(6) brightness(0.85) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
         : `drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color})`;
+      const iconInner = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;">${sp.emoji}</div>`;
       const speciesIcon = window.L.divIcon({
-        html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;opacity:${isRecent ? 1 : 0.75};filter:${filterCss};">${sp.emoji}</div>`,
+        html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;opacity:${isRecent ? 1 : 0.75};filter:${filterCss};">${iconInner}</div>`,
         className: "",
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
