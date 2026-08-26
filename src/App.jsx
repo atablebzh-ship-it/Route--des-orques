@@ -584,18 +584,20 @@ function FishNetIcon({ size = 20, color = "#000000" }) {
 }
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, focusTarget, mapStyle, onJoinConvoy }) {
+function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
   const onPickLocationRef = useRef(onPickLocation);
   const onJoinConvoyRef = useRef(onJoinConvoy);
+  const onDeleteAlertRef = useRef(onDeleteAlert);
   const alertMarkersRef = useRef({});
   const baseLayerRef = useRef(null);
   const labelsLayerRef = useRef(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
   useEffect(() => { onJoinConvoyRef.current = onJoinConvoy; }, [onJoinConvoy]);
+  useEffect(() => { onDeleteAlertRef.current = onDeleteAlert; }, [onDeleteAlert]);
 
   useEffect(() => {
     if (!mapElRef.current || mapRef.current || !window.L) return;
@@ -718,6 +720,22 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const alertMarker = window.L.marker([a.lat, a.lon], { icon: speciesIcon })
         .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
         .addTo(layer);
+
+      // Suppression directement depuis la carte : un clic ouvre une bulle avec un bouton
+      // "Supprimer", visible pour l'auteur du signalement ou pour un modérateur.
+      const canDelete = myBoatId && (a.authorId === myBoatId || isModerator);
+      if (canDelete) {
+        const popupHtml = `${alertDesc}<button id="del-alert-${a.id}" style="margin-top:8px;width:100%;padding:8px 10px;border-radius:6px;border:none;background:${COLORS.red};color:#FFFFFF;font-weight:600;font-size:13px;cursor:pointer;">Supprimer ce signalement</button>`;
+        alertMarker.bindPopup(popupHtml, { className: "orca-tooltip", maxWidth: 240 });
+        alertMarker.on("popupopen", () => {
+          const btn = document.getElementById(`del-alert-${a.id}`);
+          if (btn) btn.onclick = () => {
+            alertMarker.closePopup();
+            onDeleteAlertRef.current && onDeleteAlertRef.current(a.id);
+          };
+        });
+      }
+
       alertMarkersRef.current[a.id] = alertMarker;
     });
 
@@ -914,7 +932,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
           .addTo(layer);
       });
     }
-  }, [pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, trails, showTrails, myBoatId]);
+  }, [pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, trails, showTrails, myBoatId, isModerator]);
 
   // Centre/zoome la carte et ouvre la bulle du marqueur correspondant quand on clique
   // sur une alerte dans la liste (géolocalisation visuelle demandée depuis l'onglet Alertes).
@@ -1282,7 +1300,7 @@ export default function RouteDesOrques() {
   .eq("id", session?.user?.id)
   .maybeSingle();
 if (p) {
-  setProfile({ id: p.id, pseudo: p.pseudo, boatName: p.boat_name });
+  setProfile({ id: p.id, pseudo: p.pseudo, boatName: p.boat_name, isModerator: !!p.is_moderator });
   if (p.last_lat && p.last_lon) setPos({ lat: p.last_lat, lon: p.last_lon });
 }
       } catch (e) {}
@@ -1746,7 +1764,9 @@ if (p) {
   const deleteAlert = async (id) => {
     if (!window.confirm("Supprimer ce signalement ?")) return;
     try {
-      const { error, count } = await supabase.from("alerts").delete({ count: "exact" }).eq("id", id).eq("author_id", profile.id);
+      let query = supabase.from("alerts").delete({ count: "exact" }).eq("id", id);
+      if (!profile.isModerator) query = query.eq("author_id", profile.id);
+      const { error, count } = await query;
       if (error || !count) {
         window.alert("Impossible de supprimer ce signalement. La suppression n'est peut-être pas encore autorisée côté Supabase (policy manquante sur la table alerts) — réessaie plus tard ou préviens le développeur.");
         return;
@@ -1803,13 +1823,12 @@ if (p) {
 
       if (editingAlertId) {
         // Modification d'un signalement existant : pas de nouvelle notification push, juste une mise à jour.
-        const { data, error } = await supabase
+        let updateQuery = supabase
           .from("alerts")
           .update({ lat, lon, count, notes: alertNotes.trim(), incident: alertIncident, species: alertSpecies })
-          .eq("id", editingAlertId)
-          .eq("author_id", profile.id)
-          .select()
-          .single();
+          .eq("id", editingAlertId);
+        if (!profile.isModerator) updateQuery = updateQuery.eq("author_id", profile.id);
+        const { data, error } = await updateQuery.select().single();
         if (error) {
           window.alert(`Impossible de modifier ce signalement : ${error.message}`);
           setSaving(false);
@@ -2522,6 +2541,8 @@ const startPicking = (target) => {
                 trails={trails}
                 showTrails={showTrails}
                 myBoatId={profile.id}
+                isModerator={!!profile.isModerator}
+                onDeleteAlert={deleteAlert}
                 focusTarget={alertFocus}
                 mapStyle={mapStyle}
                 onJoinConvoy={onJoinConvoy}
@@ -2766,7 +2787,7 @@ const startPicking = (target) => {
                                     <button onClick={(e) => { e.stopPropagation(); exportAlertGPX(a); }} title="Exporter ce point en GPX" style={{ color: COLORS.muted }}>
                                       <Download size={14} />
                                     </button>
-                                    {a.authorId === profile.id && (
+                                    {(a.authorId === profile.id || profile.isModerator) && (
                                       <>
                                         <button onClick={(e) => { e.stopPropagation(); openEditAlertForm(a); }} title="Modifier ce signalement" style={{ color: COLORS.muted }}>
                                           <Pencil size={14} />
