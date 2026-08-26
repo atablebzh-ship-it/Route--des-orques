@@ -35,9 +35,9 @@ const FONTS = `
 }
 
 .leaflet-tooltip.orca-tooltip {
-  background: #22384A;
+  background: #254864;
   color: #FFFFFF;
-  border: 2px solid #3A5A6E;
+  border: 2px solid #3E7398;
   font-family: 'Inter', sans-serif;
   font-size: 15px;
   font-weight: 600;
@@ -73,15 +73,15 @@ const FONTS = `
 /* Popups (bulle "Rejoindre le convoi" au clic sur un marqueur/tracé de convoi) — même
    habillage sombre que les tooltips .orca-tooltip pour rester cohérent avec le reste. */
 .leaflet-popup-content-wrapper {
-  background: #22384A;
+  background: #254864;
   color: #FFFFFF;
-  border: 2px solid #3A5A6E;
+  border: 2px solid #3E7398;
   border-radius: 10px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.45);
 }
 .leaflet-popup-tip {
-  background: #22384A;
-  border: 2px solid #3A5A6E;
+  background: #254864;
+  border: 2px solid #3E7398;
   box-shadow: none;
 }
 .leaflet-popup-content {
@@ -93,20 +93,22 @@ const FONTS = `
 }
 `;
 
+// Palette "Bleu + touche ambre" : plus claire et plus colorée que l'ancien bleu-ardoise
+// sombre, avec l'ambre comme couleur d'accent pour les actions principales.
 const COLORS = {
-  bg: "#16283A",
-  panel: "#22384A",
-  panelAlt: "#2C4A5E",
-  border: "#3A5A6E",
+  bg: "#1D3A50",
+  panel: "#254864",
+  panelAlt: "#2F5E82",
+  border: "#3E7398",
   text: "#F0F5F4",
-  muted: "#8DA6AC",
-  cyan: "#5FD0C4",
-  cyanDim: "#2E5C56",
-  orange: "#F2A65A",
-  orangeDim: "#5C3D1C",
-  green: "#6FE0B8",
-  greenDim: "#2C5A46",
-  red: "#E2504F",
+  muted: "#9DBAC4",
+  cyan: "#4FC3D9",
+  cyanDim: "#1F4A56",
+  orange: "#E8A23D",
+  orangeDim: "#5C4014",
+  green: "#4FD98A",
+  greenDim: "#1F4A32",
+  red: "#E5504F",
   redDim: "#5C2523",
 };
 
@@ -118,6 +120,9 @@ const MAX_CHAT = 150;
 const MAX_DM = 300; // messages privés conservés côté client, tous fils confondus
 const MAX_ALERTS = 300; // couvre les signalements récents + l'historique de la saison
 const MAX_CONVOYS = 40;
+// Un convoi reste visible dans les listes/la carte jusqu'à 3 jours après sa date de fin
+// prévue (arrivée, ou départ si pas d'arrivée renseignée) — voir isConvoyExpired plus bas.
+const CONVOY_EXPIRY_BUFFER_MS = 3 * 24 * 3600 * 1000;
 const RECENT_ALERT_MS = 6 * 3600 * 1000;
 const DEFAULT_ALERT_RADIUS_KM = 100; // rayon par défaut pour les notifications push d'alerte orque
 const ALERT_RADIUS_OPTIONS = [10, 25, 50, 100, 200, null]; // null = illimité (pas de filtre de distance)
@@ -300,7 +305,7 @@ const RESCUE_CONTACT = {
 // Zones d'élevage de poissons (aquaculture marine) repérées sur la route Brest → Gibraltar.
 // Liste volontairement limitée à des sites nommés et vérifiables via presse spécialisée/officielle
 // (pas le cadastre aquacole complet — les portails SIG officiels ci-dessous en donnent la vue exhaustive
-// et à jour). Positions approximatives, à confirmer avant usage opérationnel.
+// et à jour). Positions approximatives, à confirmer avant usage opérationnel réel.
 const FISH_FARMS = [
   {
     name: "Ferme Marine du Douhet (Poissons du Soleil)",
@@ -490,22 +495,25 @@ function Badge({ children, color, bg }) {
 
 function IconBtn({ onClick, active, children, label }) {
   return (
-           <button
-          onClick={onClick}
-          className="flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-full shadow-lg"
-          style={{
-            color: active ? COLORS.cyan : COLORS.text,
-            /* Fond sombre uniforme (comme Observations) sur tous les boutons, actif ou non —
-               seule la couleur de bordure/texte change pour indiquer l'état actif. */
-            background: "rgba(34,56,74,0.92)",
-            backdropFilter: "blur(12px)",
-            border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
-            opacity: active ? 1 : 0.85,
-            minWidth: 52,
-          }}
-        >
+    <button
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="flex items-center justify-center rounded-full shadow-lg"
+      style={{
+        color: active ? COLORS.cyan : COLORS.text,
+        /* Fond sombre uniforme (comme Observations) sur tous les boutons, actif ou non —
+           seule la couleur de bordure/texte change pour indiquer l'état actif. Icônes seules
+           (sans libellé sous l'icône) pour rester compact sur mobile. */
+        background: "rgba(37,72,100,0.92)",
+        backdropFilter: "blur(12px)",
+        border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
+        opacity: active ? 1 : 0.85,
+        width: 44,
+        height: 44,
+      }}
+    >
       {children}
-      <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10 }} className="font-medium">{label}</span>
     </button>
   );
 }
@@ -526,7 +534,7 @@ const inputStyle = {
 };
 
 // --- Curseur de sélection sur la carte : viseur épais et bien visible pendant le "Sur la carte" ---
-const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23F2A65A" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23F2A65A" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23F2A65A" stroke-width="5"/></svg>') 22 22, crosshair`;
+const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><line x1="22" y1="2" x2="22" y2="42" stroke="%23E8A23D" stroke-width="5"/><line x1="2" y1="22" x2="42" y2="22" stroke="%23E8A23D" stroke-width="5"/><circle cx="22" cy="22" r="10" fill="none" stroke="%23E8A23D" stroke-width="5"/></svg>') 22 22, crosshair`;
 
 // Icône "élevage de poissons" : un filet suspendu entre deux perches (représente un parc
 // aquacole flottant), plutôt que l'emoji poisson générique. Version HTML brute (pour les
@@ -792,14 +800,14 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
 
         // Aux deux extrémités (départ et arrivée), le tracé approche le port en ligne
         // approximative : il ne suit PAS le balisage nautique réel (chenal, bouées, feux).
-        // On distingue visuellement ces segments d'« approche » (fins, pointillés) du
-        // « couloir » central (large, trait plein) pour rappeler qu'à l'approche des ports
-        // il faut suivre le balisage réel (voir la couche OpenSeaMap sur la carte) — le
-        // couloir central, lui, est en trait plein pour un rendu plus lisible / moins
-        // "ligne de construction".
+        // On distingue visuellement ces segments d'« approche » (fins, pointillés serrés,
+        // discrets) du « couloir » central (large, trait plein) pour rappeler qu'à
+        // l'approche des ports il faut suivre le balisage réel (voir la couche OpenSeaMap
+        // sur la carte) — le couloir central, lui, reste en trait plein pour un rendu plus
+        // lisible / moins "ligne de construction" sur le reste du trajet.
         // Ton convoi (noir) reste plus marqué que les convois qu'on peut rejoindre (cyan).
         const routeColor = isMine ? "#000000" : COLORS.cyan;
-        const approachStyle = { color: routeColor, weight: isMine ? 3 : 2.5, opacity: isMine ? 0.6 : 0.5, dashArray: "4 8", lineCap: "round" };
+        const approachStyle = { color: routeColor, weight: isMine ? 2.5 : 2, opacity: isMine ? 0.55 : 0.45, dashArray: "2 6", lineCap: "round" };
         const corridorStyle = { color: routeColor, weight: isMine ? 4 : 3, opacity: isMine ? 0.85 : 0.7, lineCap: "round" };
         const approachHeadline = "Approche du port · balisage nautique réel à suivre (voir bouées/chenal sur la carte)";
         const corridorHeadline = "Route du convoi (indicative)";
@@ -2433,15 +2441,27 @@ const startPicking = (target) => {
       brg: pos ? bearingDeg(pos.lat, pos.lon, a.lat, a.lon) : null,
     }));
 
+  // Fenêtre de visibilité d'un convoi : reste dans les listes/la carte jusqu'à 3 jours après
+  // sa date de fin prévue (arrivée, ou départ si pas d'arrivée renseignée). Passé ce délai, il
+  // sort automatiquement — sans être supprimé en base (on garde l'historique côté Supabase).
+  const isConvoyExpired = (cv) => {
+    const endIso = cv.etaAt || cv.departureAt;
+    if (!endIso) return false; // pas de date renseignée : jamais masqué automatiquement
+    const endTs = new Date(endIso).getTime();
+    if (Number.isNaN(endTs)) return false;
+    return now - endTs > CONVOY_EXPIRY_BUFFER_MS;
+  };
+  const visibleConvoys = convoys.filter((cv) => !isConvoyExpired(cv));
+
   const activeCount = others.filter((b) => !b.stale).length;
-  const myConvoy = convoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
+  const myConvoy = visibleConvoys.find((cv) => cv.members.some((m) => m.boatId === profile.id && m.status === "confirme"));
   const myConvoyMemberIds = myConvoy ? myConvoy.members.filter((m) => m.status === "confirme").map((m) => m.boatId) : [];
 
   // Rejoindre un convoi directement depuis son tracé/marqueur sur la carte — même action que
   // le bouton "Demander à rejoindre" de l'onglet Convois. On revérifie l'appartenance ici au
   // cas où l'état aurait changé depuis le dernier rendu de la carte (double-clic, etc.).
   const onJoinConvoy = (convoyId) => {
-    const cv = convoys.find((c) => c.id === convoyId);
+    const cv = visibleConvoys.find((c) => c.id === convoyId);
     if (!cv || cv.members.some((m) => m.boatId === profile.id)) return;
     requestJoin(convoyId);
   };
@@ -2456,7 +2476,7 @@ const startPicking = (target) => {
           pos={pos}
           others={others}
           alertsWithDist={alertsWithDist}
-          convoys={convoys}
+          convoys={visibleConvoys}
           myConvoyMemberIds={myConvoyMemberIds}
           now={now}
           onSelectBoat={setSelectedBoat}
@@ -2483,7 +2503,7 @@ const startPicking = (target) => {
           : null;
         return (
           <div className="absolute z-[1150] rounded-lg shadow-lg px-3.5 py-2.5 text-xs"
-            style={{ top: 72, left: "50%", transform: "translateX(-50%)", background: "rgba(34,56,74,0.92)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.cyanDim}`, color: COLORS.text, minWidth: 220 }}>
+            style={{ top: 72, left: "50%", transform: "translateX(-50%)", background: "rgba(37,72,100,0.92)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.cyanDim}`, color: COLORS.text, minWidth: 220 }}>
             <div className="flex items-center gap-1.5">
               <span>{nearestAlert ? speciesInfo(nearestAlert.species || "orque").emoji : "🐋"}</span>
               <span>
@@ -2494,7 +2514,7 @@ const startPicking = (target) => {
             </div>
             <div className="flex items-center gap-3 mt-1">
               <span className="flex items-center gap-1"><Users size={12} /> {activeCount} actif{activeCount > 1 ? "s" : ""}</span>
-              <span className="flex items-center gap-1"><SolidSailboatIcon size={12} color={COLORS.orange} /> {convoys.length} convoi{convoys.length > 1 ? "s" : ""}</span>
+              <span className="flex items-center gap-1"><SolidSailboatIcon size={12} color={COLORS.orange} /> {visibleConvoys.length} convoi{visibleConvoys.length > 1 ? "s" : ""}</span>
             </div>
           </div>
         );
@@ -2502,7 +2522,7 @@ const startPicking = (target) => {
 
       {/* Header flottant */}
       <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 py-3"
-        style={{ background: "rgba(22,40,58,0.82)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${COLORS.border}` }}>
+        style={{ background: "rgba(29,58,80,0.82)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${COLORS.border}` }}>
         <div className="flex items-center gap-2">
           <Compass size={22} style={{ color: COLORS.orange }} />
           <span className="font-semibold tracking-wide text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
@@ -2517,20 +2537,21 @@ const startPicking = (target) => {
 
       {/* Chat et Profil ("Moi") : déplacés en haut à gauche, juste sous le bandeau
           "ROUTE DES ORQUES", toujours visibles (comme la barre du bas) plutôt que rangés
-          avec les autres onglets en bas. */}
-      <div className="absolute z-[1200] flex-col" style={{ top: 72, left: 12, gap: 20 }}>
-        <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={26} color="#8C7AE6" /></IconBtn>
-        <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={26} color={COLORS.orange} /></IconBtn>
+          avec les autres onglets en bas. Icônes seules (sans libellé) pour rester compacts
+          sur mobile — le nom de l'onglet reste accessible via l'attribut title/aria-label. */}
+      <div className="absolute z-[1200] flex flex-col" style={{ top: 72, left: 12, gap: 10 }}>
+        <IconBtn onClick={() => setTab(tab === "chat" ? "carte" : "chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
+        <IconBtn onClick={() => setTab(tab === "profile" ? "carte" : "profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={20} color={COLORS.orange} /></IconBtn>
       </div>
 
       {/* Panneau flottant pour les onglets autres que la carte : la carte reste toujours
           visible en fond, ce panneau vient juste se poser par-dessus. Un bouton fermer permet
           d'y revenir directement sans repasser par un onglet "Carte" dédié. */}
       {tab !== "carte" && (
-        // bottom relevé (92 -> 138) : la barre du bas est bien plus haute depuis que ses icônes
-        // ont grossi (~3x), l'ancienne valeur faisait coller/chevaucher le panneau avec elle.
-        <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 138 }}>
-          <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "62vh", background: "rgba(34,56,74,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
+        // bottom relevé : la barre du bas reste compacte (icônes seules) mais on garde une
+        // marge confortable pour ne pas chevaucher le panneau.
+        <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 108 }}>
+          <div className="w-full flex flex-col rounded-xl overflow-hidden" style={{ maxWidth: 480, maxHeight: "64vh", background: "rgba(37,72,100,0.94)", backdropFilter: "blur(12px)", border: `1px solid ${COLORS.border}` }}>
             <div className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
               <span className="text-sm font-semibold tracking-wide" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>
                 {tab === "convois" ? t.tabConvois : tab === "alerts" ? t.tabAlerts : tab === "chat" ? t.tabChat : t.tabProfile}
@@ -2551,12 +2572,12 @@ const startPicking = (target) => {
                     <Plus size={16} /> Créer un convoi
                   </button>
 
-                  {convoys.length === 0 ? (
+                  {visibleConvoys.length === 0 ? (
                     <Panel className="p-4 text-center">
                       <p className="text-sm" style={{ color: COLORS.muted }}>Aucun convoi pour l'instant. Crée le premier et invite les plaisanciers proches.</p>
                     </Panel>
                   ) : (
-                    convoys.map((cv) => {
+                    visibleConvoys.map((cv) => {
                       const me = cv.members.find((m) => m.boatId === profile.id);
                       const isOrganizer = cv.organizerId === profile.id;
                       const confirmed = cv.members.filter((m) => m.status === "confirme");
@@ -3093,14 +3114,14 @@ const startPicking = (target) => {
         </div>
       )}
 
-      {/* Barre d'onglets flottante — Option B : 2 onglets principaux (Convois avec compteur,
+      {/* Barre d'onglets flottante — Option B : icônes seules (sans libellé sous l'icône) pour
+          rester compacte en mode téléphone. 2 onglets principaux (Convois avec compteur,
           Observations) + un bouton "Couches" qui ouvre un petit menu regroupant les 3 filtres
-          de calques (chantiers navals / secours / zones de pêche), au lieu de 5 boutons fixes.
-          Ça libère de la place en bas sur mobile. */}
+          de calques (chantiers navals / secours / zones de pêche), au lieu de 5 boutons fixes. */}
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
         <div className="relative flex" style={{ gap: 10 }}>
           {showLayersMenu && (
-            <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 118, left: "50%", transform: "translateX(-50%)", background: "rgba(34,56,74,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
+            <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
               <button onClick={() => setShowShipyards((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showShipyards ? 1 : 0.4 }}>
                 <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.green, border: "2px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🛠️</span>
                 <span className="text-xs" style={{ color: COLORS.text }}>Chantiers</span>
@@ -3121,20 +3142,20 @@ const startPicking = (target) => {
               fond. Chaque bouton ci-dessous ouvre son panneau par-dessus la carte ; retaper
               sur le bouton déjà actif (ou le bouton fermer du panneau) referme le panneau et
               redonne directement accès à la carte, sans détour par un onglet séparé. */}
-          <IconBtn onClick={() => setTab(tab === "convois" ? "carte" : "convois")} active={tab === "convois"} label={t.tabConvois}>
+          <IconBtn onClick={() => setTab(tab === "convois" ? "carte" : "convois")} active={tab === "convois"} label={`${t.tabConvois} (${visibleConvoys.length})`}>
             <span style={{ position: "relative", display: "inline-block" }}>
-              <SolidSailboatIcon size={26} color={COLORS.orange} />
-              {convoys.length > 0 && (
+              <SolidSailboatIcon size={20} color={COLORS.orange} />
+              {visibleConvoys.length > 0 && (
                 <span style={{
-                  position: "absolute", top: -6, right: -8, background: COLORS.orange, color: "#1A0E08",
+                  position: "absolute", top: -7, right: -9, background: COLORS.orange, color: "#1A0E08",
                   fontSize: 9, fontWeight: 500, borderRadius: 8, padding: "0px 4px", minWidth: 14, textAlign: "center",
                   border: `1.5px solid ${COLORS.panel}`,
-                }}>{convoys.length}</span>
+                }}>{visibleConvoys.length}</span>
               )}
             </span>
           </IconBtn>
-          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={26} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
-          <IconBtn onClick={() => setShowLayersMenu((v) => !v)} active={showLayersMenu} label="Couches"><Layers size={22} color={COLORS.cyan} /></IconBtn>
+          <IconBtn onClick={() => setTab(tab === "alerts" ? "carte" : "alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={20} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={() => setShowLayersMenu((v) => !v)} active={showLayersMenu} label="Couches"><Layers size={18} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
 
