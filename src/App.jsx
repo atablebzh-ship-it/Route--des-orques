@@ -700,7 +700,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const size = isOrca ? (isRecent ? 54 : 40) : (isRecent ? 42 : 30);
       const fontSize = isOrca ? (isRecent ? 40 : 28) : (isRecent ? 30 : 20);
       const filterCss = isOrca
-        ? `url(#orca-bw) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
+        ? `grayscale(1) contrast(2.5) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
         : `drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color})`;
       const iconInner = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;">${sp.emoji}</div>`;
       const speciesIcon = window.L.divIcon({
@@ -1422,7 +1422,9 @@ if (p) {
           members: membersByConvoy[cv.id] || [],
         })));
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("fetchShared error:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -1808,7 +1810,12 @@ if (p) {
           .eq("author_id", profile.id)
           .select()
           .single();
-        if (!error && data) {
+        if (error) {
+          window.alert(`Impossible de modifier ce signalement : ${error.message}`);
+          setSaving(false);
+          return;
+        }
+        if (data) {
           setAlerts((prev) => prev.map((a) => (a.id === editingAlertId ? {
             ...a, lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, incident: !!data.incident, species: data.species || alertSpecies,
           } : a)));
@@ -1819,7 +1826,12 @@ if (p) {
           .insert({ author_id: profile.id, author: profile.pseudo, boat_name: profile.boatName, lat, lon, count, notes: alertNotes.trim(), incident: alertIncident, species: alertSpecies })
           .select()
           .single();
-        if (!error && data) {
+        if (error) {
+          window.alert(`Impossible d'enregistrer ce signalement : ${error.message}`);
+          setSaving(false);
+          return;
+        }
+        if (data) {
           const entry = {
             id: data.id, authorId: data.author_id, author: data.author, boatName: data.boat_name,
             lat: data.lat, lon: data.lon, count: data.count, notes: data.notes, incident: !!data.incident, createdAt: new Date(data.created_at).getTime(),
@@ -1862,7 +1874,9 @@ if (p) {
       setShowAlertForm(false);
       setShowLayersMenu(false);
       setTab("alerts");
-    } catch (e) {}
+    } catch (e) {
+      window.alert(`Erreur inattendue lors de l'enregistrement : ${e?.message || e}`);
+    }
     setSaving(false);
   };
 
@@ -2489,21 +2503,6 @@ const startPicking = (target) => {
     return (
    <div className="relative overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif", position: "fixed", inset: 0 }}>
       <style>{FONTS}</style>
-      {/* Filtre seuil noir/blanc strict pour le marqueur orque : tout pixel sous 50% de
-          luminosité devient noir pur, le reste reste blanc pur — plus fiable qu'un simple
-          contrast() CSS qui dépend des teintes exactes de l'emoji source. */}
-      <svg style={{ position: "absolute", width: 0, height: 0 }} aria-hidden="true">
-        <defs>
-          <filter id="orca-bw">
-            <feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0" />
-            <feComponentTransfer>
-              <feFuncR type="discrete" tableValues="0 1" />
-              <feFuncG type="discrete" tableValues="0 1" />
-              <feFuncB type="discrete" tableValues="0 1" />
-            </feComponentTransfer>
-          </filter>
-        </defs>
-      </svg>
 
       {/* Carte marine plein écran, en fond */}
       <div className="absolute inset-0">
