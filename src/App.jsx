@@ -584,19 +584,21 @@ function FishNetIcon({ size = 20, color = "#000000" }) {
 }
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
+function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onSelectPlace, onSelectConvoyMarker }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
   const onPickLocationRef = useRef(onPickLocation);
-  const onJoinConvoyRef = useRef(onJoinConvoy);
+  const onSelectPlaceRef = useRef(onSelectPlace);
+  const onSelectConvoyMarkerRef = useRef(onSelectConvoyMarker);
   const onDeleteAlertRef = useRef(onDeleteAlert);
   const alertMarkersRef = useRef({});
   const baseLayerRef = useRef(null);
   const labelsLayerRef = useRef(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
-  useEffect(() => { onJoinConvoyRef.current = onJoinConvoy; }, [onJoinConvoy]);
+  useEffect(() => { onSelectPlaceRef.current = onSelectPlace; }, [onSelectPlace]);
+  useEffect(() => { onSelectConvoyMarkerRef.current = onSelectConvoyMarker; }, [onSelectConvoyMarker]);
   useEffect(() => { onDeleteAlertRef.current = onDeleteAlert; }, [onDeleteAlert]);
 
   useEffect(() => {
@@ -754,32 +756,14 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const accentBg = isMine ? COLORS.green : COLORS.cyan;
       const accentBorder = isMine ? "#0A1F14" : "#0A2E33";
 
-      // Une seule bulle par élément, au clic uniquement (plus de tooltip au survol en plus du
-      // popup : les deux se chevauchaient et affichaient des infos différentes au même endroit).
-      // Le popup regroupe tout : repère (RDV/destination/route), organisateur, et le bouton
-      // pour rejoindre quand ce n'est pas déjà ton convoi.
-      const buildPopupHtml = (headline) => {
-        const lines = [`<div class="orca-tooltip-title">${cv.name}</div>`];
-        if (headline) lines.push(`<div class="orca-tooltip-meta">${headline}</div>`);
-        lines.push(`<div class="orca-tooltip-meta">Organisé par ${cv.organizerPseudo} · ${cv.organizerBoat}</div>`);
-        if (isMine) {
-          lines.push(`<div class="orca-tooltip-notes" style="color:${COLORS.green};">Ton convoi</div>`);
-        } else if (isPending) {
-          lines.push(`<div class="orca-tooltip-notes">Demande envoyée — en attente de confirmation</div>`);
-        } else {
-          lines.push(`<button id="join-btn-${cv.id}" style="margin-top:8px;width:100%;padding:9px 10px;border-radius:6px;border:none;background:${COLORS.green};color:#0A1F14;font-weight:600;font-size:13px;cursor:pointer;">Rejoindre le convoi</button>`);
-        }
-        return lines.join("");
-      };
-
+      // Au clic, on ouvre une mini-fenêtre React (comme pour les onglets) au lieu d'une bulle
+      // Leaflet qui se refermait dès qu'on cliquait ailleurs ou qu'on quittait la carte des
+      // yeux : plus lisible, avec les dates de départ/arrivée du convoi, et reste ouverte tant
+      // qu'on ne la ferme pas explicitement.
       const bindJoinPopup = (marker, headline) => {
-        marker.bindPopup(buildPopupHtml(headline), { className: "orca-tooltip", maxWidth: 240 });
-        if (!isMine && !isPending) {
-          marker.on("popupopen", () => {
-            const btn = document.getElementById(`join-btn-${cv.id}`);
-            if (btn) btn.onclick = () => onJoinConvoyRef.current && onJoinConvoyRef.current(cv.id);
-          });
-        }
+        marker.on("click", () => {
+          onSelectConvoyMarkerRef.current && onSelectConvoyMarkerRef.current({ convoy: cv, headline, isMine, isPending });
+        });
       };
 
       if (hasRdv) {
@@ -863,9 +847,8 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         iconAnchor: [18, 18],
       });
       SHIPYARDS.forEach((s) => {
-        const yardTooltip = `<div class="orca-tooltip-title">${s.name}</div><div class="orca-tooltip-meta">${s.address}${s.phone ? ` · ${s.phone}` : ""}</div>`;
         window.L.marker([s.lat, s.lon], { icon: wrenchIcon })
-          .bindTooltip(yardTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .on("click", () => onSelectPlaceRef.current && onSelectPlaceRef.current({ type: "yard", icon: "🛠️", name: s.name, address: s.address, phone: s.phone }))
           .addTo(layer);
       });
     }
@@ -879,10 +862,11 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       });
       RESCUE_STATIONS.forEach((s) => {
         const contact = RESCUE_CONTACT[s.org];
-        const contactLine = contact ? `<div class="orca-tooltip-meta">VHF ${contact.vhf} · ☎ ${contact.phone}</div>` : "";
-        const stationTooltip = `<div class="orca-tooltip-title">${s.name}</div><div class="orca-tooltip-meta">${s.address}</div>${contactLine}`;
         window.L.marker([s.lat, s.lon], { icon: buoyIcon })
-          .bindTooltip(stationTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .on("click", () => onSelectPlaceRef.current && onSelectPlaceRef.current({
+            type: "rescue", icon: "🛟", name: s.name, address: s.address,
+            vhf: contact?.vhf, phone: contact?.phone,
+          }))
           .addTo(layer);
       });
     }
@@ -895,9 +879,8 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         iconAnchor: [17, 17],
       });
       FISH_FARMS.forEach((f) => {
-        const farmTooltip = `<div class="orca-tooltip-title">🐟 ${f.name}</div><div class="orca-tooltip-meta">${f.address}</div><div class="orca-tooltip-meta">${f.species}</div><div class="orca-tooltip-notes">Position approximative — voir sources officielles pour le cadastre complet</div>`;
         window.L.marker([f.lat, f.lon], { icon: fishFarmIcon })
-          .bindTooltip(farmTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+          .on("click", () => onSelectPlaceRef.current && onSelectPlaceRef.current({ type: "farm", icon: "🐟", name: f.name, address: f.address, species: f.species }))
           .addTo(layer);
       });
     }
@@ -989,6 +972,14 @@ const TRANSLATIONS = {
     noHistoryAlerts: "Aucun signalement dans l'historique pour l'instant.",
     officialSourcesTitle: "Sources officielles",
     officialSourcesDesc: "Pour les données antérieures et les statistiques complètes par espèce :",
+    convoyOrganizedBy: (pseudo, boat) => `Organisé par ${pseudo} · ${boat}`,
+    convoyYours: "Ton convoi",
+    convoyPending: "Demande envoyée — en attente de confirmation",
+    convoyJoinBtn: "Rejoindre le convoi",
+    departureLabel: "Départ",
+    etaLabel: "Arrivée prévue",
+    approxPosition: "Position approximative — voir sources officielles pour le cadastre complet",
+    closeLabel: "Fermer",
   },
   en: {
     loginTagline: "Sign in with a magic link — no password to remember.",
@@ -1018,6 +1009,14 @@ const TRANSLATIONS = {
     noHistoryAlerts: "No reports in the history yet.",
     officialSourcesTitle: "Official sources",
     officialSourcesDesc: "For past data and full statistics per species:",
+    convoyOrganizedBy: (pseudo, boat) => `Organized by ${pseudo} · ${boat}`,
+    convoyYours: "Your convoy",
+    convoyPending: "Request sent — awaiting confirmation",
+    convoyJoinBtn: "Join the convoy",
+    departureLabel: "Departure",
+    etaLabel: "Expected arrival",
+    approxPosition: "Approximate position — see official sources for the full register",
+    closeLabel: "Close",
   },
   es: {
     loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
@@ -1047,6 +1046,14 @@ const TRANSLATIONS = {
     noHistoryAlerts: "Aún no hay reportes en el historial.",
     officialSourcesTitle: "Fuentes oficiales",
     officialSourcesDesc: "Para datos anteriores y estadísticas completas por especie:",
+    convoyOrganizedBy: (pseudo, boat) => `Organizado por ${pseudo} · ${boat}`,
+    convoyYours: "Tu convoy",
+    convoyPending: "Solicitud enviada — a la espera de confirmación",
+    convoyJoinBtn: "Unirse al convoy",
+    departureLabel: "Salida",
+    etaLabel: "Llegada prevista",
+    approxPosition: "Posición aproximada — consulta las fuentes oficiales para el registro completo",
+    closeLabel: "Cerrar",
   },
   pt: {
     loginTagline: "Entrar com link mágico — sem senha para lembrar.",
@@ -1076,6 +1083,14 @@ const TRANSLATIONS = {
     noHistoryAlerts: "Ainda não há relatos no histórico.",
     officialSourcesTitle: "Fontes oficiais",
     officialSourcesDesc: "Para dados anteriores e estatísticas completas por espécie:",
+    convoyOrganizedBy: (pseudo, boat) => `Organizado por ${pseudo} · ${boat}`,
+    convoyYours: "O teu comboio",
+    convoyPending: "Pedido enviado — a aguardar confirmação",
+    convoyJoinBtn: "Juntar-me ao comboio",
+    departureLabel: "Partida",
+    etaLabel: "Chegada prevista",
+    approxPosition: "Posição aproximada — ver fontes oficiais para o registo completo",
+    closeLabel: "Fechar",
   },
 };
 
@@ -1128,9 +1143,11 @@ export default function RouteDesOrques() {
   const [tab, setTab] = useState("carte");
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
-  const [showShipyards, setShowShipyards] = useState(true);
-  const [showFishFarms, setShowFishFarms] = useState(true);
-  const [showRescueStations, setShowRescueStations] = useState(true);
+  // Couches optionnelles (chantiers/secours/élevage) : masquées par défaut au démarrage pour
+  // ne pas surcharger la carte — l'utilisateur les active lui-même via le menu "Couches".
+  const [showShipyards, setShowShipyards] = useState(false);
+  const [showFishFarms, setShowFishFarms] = useState(false);
+  const [showRescueStations, setShowRescueStations] = useState(false);
   const [showLayersMenu, setShowLayersMenu] = useState(false);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
@@ -1160,6 +1177,10 @@ export default function RouteDesOrques() {
   const [activeDmPeerId, setActiveDmPeerId] = useState(null);
   const [dmText, setDmText] = useState("");
   const [selectedBoat, setSelectedBoat] = useState(null);
+  // Mini-fenêtres d'info carte (remplacent les bulles Leaflet qui se refermaient au survol) :
+  // un point d'intérêt (chantier/secours/élevage) ou un marqueur/tracé de convoi cliqué.
+  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [selectedConvoyMarker, setSelectedConvoyMarker] = useState(null);
   const [expandedConvoy, setExpandedConvoy] = useState(null);
   const [geoError, setGeoError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -2407,7 +2428,6 @@ const startPicking = (target) => {
             myBoatId={null}
             focusTarget={null}
             mapStyle="street"
-            onJoinConvoy={() => {}}
           />
         </div>
         <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 20 }}>
@@ -2555,7 +2575,8 @@ const startPicking = (target) => {
                 onDeleteAlert={deleteAlert}
                 focusTarget={alertFocus}
                 mapStyle={mapStyle}
-                onJoinConvoy={onJoinConvoy}
+                onSelectPlace={setSelectedPlace}
+                onSelectConvoyMarker={setSelectedConvoyMarker}
               />
       </div>
 
@@ -3502,6 +3523,87 @@ const startPicking = (target) => {
                 Voir sur la carte
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fiche point d'intérêt (chantier naval / station de secours / élevage) : s'ouvre au clic
+          sur le marqueur et reste ouverte tant qu'on ne la ferme pas explicitement — remplace
+          l'ancienne bulle Leaflet au survol, qui disparaissait dès qu'on quittait le marqueur
+          des yeux (ou ne s'affichait jamais au tactile). */}
+      {selectedPlace && (
+        <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedPlace(null)}>
+          <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span style={{ fontSize: 26 }}>{selectedPlace.icon}</span>
+                <p className="text-sm font-medium" style={{ color: COLORS.text }}>{selectedPlace.name}</p>
+              </div>
+              <button onClick={() => setSelectedPlace(null)}><X size={18} style={{ color: COLORS.muted }} /></button>
+            </div>
+            <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+              <div className="text-sm" style={{ color: COLORS.text }}>{selectedPlace.address}</div>
+              {selectedPlace.species && (
+                <div className="text-sm" style={{ color: COLORS.muted }}>{selectedPlace.species}</div>
+              )}
+              {(selectedPlace.vhf || selectedPlace.phone) && (
+                <div className="flex items-center gap-3 text-sm" style={{ color: COLORS.text }}>
+                  {selectedPlace.vhf && <span>VHF {selectedPlace.vhf}</span>}
+                  {selectedPlace.phone && <span>☎ {selectedPlace.phone}</span>}
+                </div>
+              )}
+              {selectedPlace.type === "farm" && (
+                <div className="text-xs" style={{ color: COLORS.muted }}>{t.approxPosition}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fiche convoi cliqué sur la carte (repère RDV/destination ou tracé du couloir) : même
+          habillage mini-fenêtre que le reste, avec les dates de départ/arrivée du convoi. */}
+      {selectedConvoyMarker && (
+        <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedConvoyMarker(null)}>
+          <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-medium" style={{ color: COLORS.text }}>{selectedConvoyMarker.convoy.name}</p>
+                {selectedConvoyMarker.headline && (
+                  <p className="text-xs" style={{ color: COLORS.muted }}>{selectedConvoyMarker.headline}</p>
+                )}
+              </div>
+              <button onClick={() => setSelectedConvoyMarker(null)}><X size={18} style={{ color: COLORS.muted }} /></button>
+            </div>
+            <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+              <div className="flex items-center justify-between text-sm">
+                <span style={{ color: COLORS.muted }}>{t.convoyOrganizedBy(selectedConvoyMarker.convoy.organizerPseudo, selectedConvoyMarker.convoy.organizerBoat)}</span>
+              </div>
+              {selectedConvoyMarker.convoy.departureAt && (
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: COLORS.muted }}>{t.departureLabel}</span>
+                  <span style={{ color: COLORS.text }}>{fmtDateTime(selectedConvoyMarker.convoy.departureAt)}</span>
+                </div>
+              )}
+              {selectedConvoyMarker.convoy.etaAt && (
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: COLORS.muted }}>{t.etaLabel}</span>
+                  <span style={{ color: COLORS.text }}>{fmtDateTime(selectedConvoyMarker.convoy.etaAt)}</span>
+                </div>
+              )}
+            </div>
+            {selectedConvoyMarker.isMine ? (
+              <div className="mt-4 text-sm font-medium" style={{ color: COLORS.green }}>{t.convoyYours}</div>
+            ) : selectedConvoyMarker.isPending ? (
+              <div className="mt-4 text-sm" style={{ color: COLORS.muted }}>{t.convoyPending}</div>
+            ) : (
+              <button
+                onClick={() => { onJoinConvoy(selectedConvoyMarker.convoy.id); setSelectedConvoyMarker(null); }}
+                className="w-full mt-4 py-2 rounded text-sm font-medium"
+                style={{ background: COLORS.green, color: "#0A1F14" }}
+              >
+                {t.convoyJoinBtn}
+              </button>
+            )}
           </div>
         </div>
       )}
