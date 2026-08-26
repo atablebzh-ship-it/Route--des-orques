@@ -790,23 +790,39 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         destMarker.addTo(layer);
       }
 
-      if (hasRdv && hasDest) {
-        // Tracé automatique : longe le couloir maritime SEA_LANE plutôt qu'une ligne droite.
-        const seaRoute = computeSeaRoute(
-          { lat: cv.rdvLat, lon: cv.rdvLon },
-          { lat: cv.destLat, lon: cv.destLon }
-        );
-        const routeLatLngs = seaRoute
-          ? seaRoute.map((p) => [p.lat, p.lon])
-          : [[cv.rdvLat, cv.rdvLon], [cv.destLat, cv.destLon]];
+      // Étapes intermédiaires du convoi : un petit marqueur numéroté par escale, cliquable
+      // comme le reste (ouvre la même mini-fenêtre, avec la liste complète des étapes).
+      const stages = Array.isArray(cv.waypoints) ? cv.waypoints.filter((w) => w.lat != null && w.lon != null) : [];
+      stages.forEach((wp, i) => {
+        const stageIcon = window.L.divIcon({
+          html: `<div style="width:28px;height:28px;border-radius:50%;background:${accentBg};border:2px solid ${accentBorder};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0A1F14;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">${i + 1}</div>`,
+          className: "",
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        });
+        const stageMarker = window.L.marker([wp.lat, wp.lon], { icon: stageIcon });
+        bindJoinPopup(stageMarker, `Étape ${i + 1}${wp.label ? ` · ${wp.label}` : ""}`);
+        stageMarker.addTo(layer);
+      });
 
-        // Aux deux extrémités (départ et arrivée), le tracé approche le port en ligne
-        // approximative : il ne suit PAS le balisage nautique réel (chenal, bouées, feux).
-        // On distingue visuellement ces segments d'« approche » (fins, pointillés serrés,
-        // discrets) du « couloir » central (large, trait plein) pour rappeler qu'à
-        // l'approche des ports il faut suivre le balisage réel (voir la couche OpenSeaMap
-        // sur la carte) — le couloir central, lui, reste en trait plein pour un rendu plus
-        // lisible / moins "ligne de construction" sur le reste du trajet.
+      // Tracé automatique : longe le couloir maritime SEA_LANE plutôt qu'une ligne droite,
+      // en passant par chaque étape dans l'ordre (RDV -> étape 1 -> ... -> destination).
+      const routePoints = [
+        ...(hasRdv ? [{ lat: cv.rdvLat, lon: cv.rdvLon }] : []),
+        ...stages,
+        ...(hasDest ? [{ lat: cv.destLat, lon: cv.destLon }] : []),
+      ];
+
+      if (routePoints.length >= 2) {
+        // Aux deux extrémités du trajet global (départ et arrivée finale), le tracé approche
+        // le port en ligne approximative : il ne suit PAS le balisage nautique réel (chenal,
+        // bouées, feux). On distingue visuellement ces segments d'« approche » (fins,
+        // pointillés serrés, discrets) du « couloir » central (large, trait plein) pour
+        // rappeler qu'à l'approche des ports il faut suivre le balisage réel (voir la couche
+        // OpenSeaMap sur la carte) — le couloir central, lui, reste en trait plein pour un
+        // rendu plus lisible / moins "ligne de construction" sur le reste du trajet. Entre deux
+        // étapes intermédiaires, tout le tracé reste en couloir (ni l'une ni l'autre n'est le
+        // vrai départ/la vraie arrivée du convoi).
         // Ton convoi (noir) reste plus marqué que les convois qu'on peut rejoindre (cyan).
         const routeColor = isMine ? "#000000" : COLORS.cyan;
         const approachStyle = { color: routeColor, weight: isMine ? 2.5 : 2, opacity: isMine ? 0.55 : 0.45, dashArray: "2 6", lineCap: "round" };
@@ -814,24 +830,37 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         const approachHeadline = "Approche du port · balisage nautique réel à suivre (voir bouées/chenal sur la carte)";
         const corridorHeadline = "Route du convoi (indicative)";
 
-        if (routeLatLngs.length <= 2) {
-          const line = window.L.polyline(routeLatLngs, corridorStyle);
-          bindJoinPopup(line, corridorHeadline);
-          line.addTo(layer);
-        } else {
-          // Segment de départ (RDV -> 1er repère du couloir) : approche, non balisée.
-          const startLine = window.L.polyline([routeLatLngs[0], routeLatLngs[1]], approachStyle);
-          bindJoinPopup(startLine, approachHeadline);
+        for (let legIdx = 0; legIdx < routePoints.length - 1; legIdx++) {
+          const isFirstLeg = legIdx === 0;
+          const isLastLeg = legIdx === routePoints.length - 2;
+          const seaRoute = computeSeaRoute(routePoints[legIdx], routePoints[legIdx + 1]);
+          const routeLatLngs = seaRoute
+            ? seaRoute.map((p) => [p.lat, p.lon])
+            : [[routePoints[legIdx].lat, routePoints[legIdx].lon], [routePoints[legIdx + 1].lat, routePoints[legIdx + 1].lon]];
+
+          if (routeLatLngs.length <= 2) {
+            const style = (isFirstLeg || isLastLeg) ? approachStyle : corridorStyle;
+            const headline = (isFirstLeg || isLastLeg) ? approachHeadline : corridorHeadline;
+            const line = window.L.polyline(routeLatLngs, style);
+            bindJoinPopup(line, headline);
+            line.addTo(layer);
+            continue;
+          }
+          // Segment de départ de cette portion : approche non balisée seulement si c'est le
+          // tout premier départ du convoi (RDV) — sinon couloir, comme le reste de la portion.
+          const startLine = window.L.polyline([routeLatLngs[0], routeLatLngs[1]], isFirstLeg ? approachStyle : corridorStyle);
+          bindJoinPopup(startLine, isFirstLeg ? approachHeadline : corridorHeadline);
           startLine.addTo(layer);
-          // Segment central (couloir maritime entre repères) : indicatif mais évite les terres.
+          // Segment central : couloir maritime indicatif entre repères, évite les terres.
           if (routeLatLngs.length > 3) {
             const midLine = window.L.polyline(routeLatLngs.slice(1, -1), corridorStyle);
             bindJoinPopup(midLine, corridorHeadline);
             midLine.addTo(layer);
           }
-          // Segment d'arrivée (dernier repère du couloir -> destination) : approche, non balisée.
-          const endLine = window.L.polyline([routeLatLngs[routeLatLngs.length - 2], routeLatLngs[routeLatLngs.length - 1]], approachStyle);
-          bindJoinPopup(endLine, approachHeadline);
+          // Segment d'arrivée de cette portion : approche non balisée seulement si c'est la
+          // toute dernière arrivée du convoi (destination) — sinon couloir.
+          const endLine = window.L.polyline([routeLatLngs[routeLatLngs.length - 2], routeLatLngs[routeLatLngs.length - 1]], isLastLeg ? approachStyle : corridorStyle);
+          bindJoinPopup(endLine, isLastLeg ? approachHeadline : corridorHeadline);
           endLine.addTo(layer);
         }
       }
@@ -979,6 +1008,7 @@ const TRANSLATIONS = {
     approxPosition: "Position approximative — voir sources officielles pour le cadastre complet",
     closeLabel: "Fermer",
     weatherMarginNote: "Dates à ± 3 jours selon la météo",
+    stagesLabel: "Étapes",
   },
   en: {
     loginTagline: "Sign in with a magic link — no password to remember.",
@@ -1017,6 +1047,7 @@ const TRANSLATIONS = {
     approxPosition: "Approximate position — see official sources for the full register",
     closeLabel: "Close",
     weatherMarginNote: "Dates ± 3 days depending on weather",
+    stagesLabel: "Stages",
   },
   es: {
     loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
@@ -1055,6 +1086,7 @@ const TRANSLATIONS = {
     approxPosition: "Posición aproximada — consulta las fuentes oficiales para el registro completo",
     closeLabel: "Cerrar",
     weatherMarginNote: "Fechas ± 3 días según el tiempo",
+    stagesLabel: "Etapas",
   },
   pt: {
     loginTagline: "Entrar com link mágico — sem senha para lembrar.",
@@ -1093,6 +1125,7 @@ const TRANSLATIONS = {
     approxPosition: "Posição aproximada — ver fontes oficiais para o registo completo",
     closeLabel: "Fechar",
     weatherMarginNote: "Datas ± 3 dias consoante o tempo",
+    stagesLabel: "Etapas",
   },
 };
 
@@ -1204,6 +1237,14 @@ export default function RouteDesOrques() {
   const [cvEta, setCvEta] = useState("");const [pickTarget, setPickTarget] = useState(null); // "rdv" | "dest" | null
   const cvDepartureRef = useRef(null);
   const cvEtaRef = useRef(null);
+
+  // Étapes intermédiaires du convoi (escales entre le RDV et la destination) : chacune a un
+  // libellé géocodé + coordonnées, et une date estimée de passage optionnelle.
+  const [cvStages, setCvStages] = useState([]); // [{ label, lat, lon, etaAt }]
+  const [cvStageText, setCvStageText] = useState("");
+  const [cvStageSuggestions, setCvStageSuggestions] = useState([]);
+  const [cvStageSuggestLoading, setCvStageSuggestLoading] = useState(false);
+  const stageGeoTimer = useRef(null);
 
   // Suggestions d'adresse (géocodage) pour les champs RDV/destination du formulaire de convoi.
   const [rdvSuggestions, setRdvSuggestions] = useState([]);
@@ -1468,6 +1509,7 @@ if (p) {
           id: cv.id, name: cv.name, organizerId: cv.organizer_id, organizerPseudo: cv.organizer_pseudo, organizerBoat: cv.organizer_boat,
           rdvLabel: cv.rdv_label, rdvLat: cv.rdv_lat, rdvLon: cv.rdv_lon, departureAt: cv.departure_at,
           destLabel: cv.dest_label, destLat: cv.dest_lat, destLon: cv.dest_lon, etaAt: cv.eta_at,
+          waypoints: Array.isArray(cv.waypoints) ? cv.waypoints : [],
           createdAt: new Date(cv.created_at).getTime(),
           members: membersByConvoy[cv.id] || [],
         })));
@@ -2006,6 +2048,7 @@ if (p) {
           dest_lat: cvDestLat,
           dest_lon: cvDestLon,
           eta_at: cvEta || null,
+          waypoints: cvStages,
         })
         .select()
         .single();
@@ -2026,6 +2069,7 @@ if (p) {
       }
       setCvName(""); setCvRdv(""); setCvRdvLat(null); setCvRdvLon(null);
       setCvDeparture(""); setCvDest(""); setCvDestLat(null); setCvDestLon(null); setCvEta("");
+      setCvStages([]); setCvStageText(""); setCvStageSuggestions([]);
       setShowConvoyForm(false);
       setShowLayersMenu(false);
       setTab("convois");
@@ -2150,6 +2194,38 @@ const startPicking = (target) => {
     setCvDestLat(s.lat);
     setCvDestLon(s.lon);
     setDestSuggestions([]);
+  };
+
+  // Étapes du convoi : recherche biaisée sur la dernière étape déjà ajoutée (ou le RDV, ou la
+  // position actuelle), même logique que pour RDV/destination.
+  const onStageTextChange = (value) => {
+    setCvStageText(value);
+    if (stageGeoTimer.current) clearTimeout(stageGeoTimer.current);
+    if (value.trim().length < 3) { setCvStageSuggestions([]); return; }
+    setCvStageSuggestLoading(true);
+    const last = cvStages[cvStages.length - 1];
+    const refPoint = last ? { lat: last.lat, lon: last.lon }
+      : (cvRdvLat != null && cvRdvLon != null) ? { lat: cvRdvLat, lon: cvRdvLon }
+      : pos ? { lat: pos.lat, lon: pos.lon } : null;
+    stageGeoTimer.current = setTimeout(async () => {
+      const results = await geocodeSearch(value, refPoint);
+      setCvStageSuggestions(results);
+      setCvStageSuggestLoading(false);
+    }, 450);
+  };
+
+  const addStage = (s) => {
+    setCvStages((prev) => [...prev, { label: s.label, lat: s.lat, lon: s.lon, etaAt: null }]);
+    setCvStageText("");
+    setCvStageSuggestions([]);
+  };
+
+  const removeStage = (index) => {
+    setCvStages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const setStageEta = (index, value) => {
+    setCvStages((prev) => prev.map((s, i) => (i === index ? { ...s, etaAt: value || null } : s)));
   };
 
   const requestJoin = async (convoyId) => {
@@ -3370,7 +3446,7 @@ const startPicking = (target) => {
           <div className="w-full max-w-sm rounded-t-xl p-5 overflow-y-auto" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, maxHeight: "85vh" }}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>CRÉER UN CONVOI</h3>
-              <button onClick={() => { setShowConvoyForm(false); setRdvSuggestions([]); setDestSuggestions([]); }}><X size={18} style={{ color: COLORS.muted }} /></button>
+              <button onClick={() => { setShowConvoyForm(false); setRdvSuggestions([]); setDestSuggestions([]); setCvStageSuggestions([]); }}><X size={18} style={{ color: COLORS.muted }} /></button>
             </div>
             <div className="space-y-3">
               <Field label="Nom du convoi">
@@ -3473,6 +3549,43 @@ const startPicking = (target) => {
                   Le tracé affiché entre RDV et destination est indicatif (couloir maritime approximatif) et ne suit pas le balisage nautique réel — près des ports, suis toujours le chenal et les bouées/feux réels (couche OpenSeaMap sur la carte) plutôt que ce tracé.
                 </p>
               )}
+              <Field label="Étapes (escales intermédiaires, optionnel)">
+                {cvStages.length > 0 && (
+                  <div className="space-y-2 mb-2">
+                    {cvStages.map((s, i) => (
+                      <div key={i} className="rounded p-2 space-y-1.5" style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs" style={{ color: COLORS.text }}>{i + 1}. {s.label}</span>
+                          <button type="button" onClick={() => removeStage(i)}><X size={14} style={{ color: COLORS.muted }} /></button>
+                        </div>
+                        <input type="datetime-local" value={s.etaAt || ""} onChange={(e) => setStageEta(i, e.target.value)}
+                          className="w-full px-2 py-1.5 rounded outline-none text-xs" style={inputStyle} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="relative">
+                  <input value={cvStageText} onChange={(e) => onStageTextChange(e.target.value)} placeholder="Ex. Saint-Sébastien"
+                    autoComplete="off"
+                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+                  {cvStageSuggestLoading && (
+                    <p className="text-xs mt-1" style={{ color: COLORS.muted }}>Recherche…</p>
+                  )}
+                  {cvStageSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 z-10 mt-1 rounded overflow-hidden shadow-lg"
+                      style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
+                      {cvStageSuggestions.map((s, i) => (
+                        <button key={i} type="button" onClick={() => addStage(s)}
+                          className="w-full text-left px-3 py-2 text-xs flex items-start gap-1.5"
+                          style={{ color: COLORS.text, borderBottom: i < cvStageSuggestions.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                          {s.isPort && <Anchor size={12} className="shrink-0 mt-0.5" style={{ color: COLORS.cyan }} />}
+                          <span>{s.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Field>
               <Field label="Heure d'arrivée estimée">
                 <div className="flex items-center gap-2">
                   <input ref={cvEtaRef} type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
@@ -3654,6 +3767,17 @@ const startPicking = (target) => {
                 <div className="text-xs" style={{ color: COLORS.muted }}>{t.weatherMarginNote}</div>
               )}
             </div>
+            {Array.isArray(selectedConvoyMarker.convoy.waypoints) && selectedConvoyMarker.convoy.waypoints.length > 0 && (
+              <div className="pt-3 mt-3 space-y-1.5" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                <p className="text-xs font-medium" style={{ color: COLORS.muted }}>{t.stagesLabel}</p>
+                {selectedConvoyMarker.convoy.waypoints.map((wp, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                    <span style={{ color: COLORS.text }}>{i + 1}. {wp.label || "—"}</span>
+                    {wp.etaAt && <span className="shrink-0" style={{ color: COLORS.muted }}>{fmtDateRange(wp.etaAt)}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
             {selectedConvoyMarker.isMine ? (
               <div className="mt-4 text-sm font-medium" style={{ color: COLORS.green }}>{t.convoyYours}</div>
             ) : selectedConvoyMarker.isPending ? (
