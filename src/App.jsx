@@ -2063,17 +2063,22 @@ const startPicking = (target) => {
   };
 
   // Géocodage (Nominatim/OpenStreetMap, gratuit, sans clé) pour proposer des lieux au fil de la
-  // saisie dans les champs RDV/destination du formulaire de convoi. Recherche biaisée sur la zone
-  // Brest → Gibraltar (viewbox non stricte), et priorisée vers les ports de plaisance/installations
-  // portuaires (deux requêtes en parallèle : le texte tel quel + le texte préfixé "marina", puis
-  // les résultats tagués port/marina côté OSM remontent en tête de liste).
+  // saisie dans les champs RDV/destination du formulaire de convoi. Un mot générique comme
+  // "puerto" remonte des centaines de résultats sur toute la façade Brest → Gibraltar (chaque
+  // résultat tombe bien dans cette zone, mais celle-ci est bien trop large pour être utile) :
+  // on resserre donc la recherche (viewbox stricte + tri par distance) autour d'un point de
+  // référence — l'autre point déjà choisi dans le formulaire (RDV pour la destination et
+  // inversement), ou à défaut la position actuelle du bateau — dès qu'on en a un.
   const PORT_OSM_TYPES = new Set(["marina", "harbour", "port", "yacht_club", "slipway", "dock", "boatyard"]);
-  const geocodeSearch = async (query) => {
+  const geocodeSearch = async (query, refPoint) => {
     const q = query.trim();
     if (!q || q.length < 3) return [];
     try {
+      const box = refPoint
+        ? `${refPoint.lon - 3},${refPoint.lat + 3},${refPoint.lon + 3},${refPoint.lat - 3}`
+        : "-10,50,0,34";
       const fetchOne = async (text) => {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=6&addressdetails=0&viewbox=-10,50,0,34&bounded=0`;
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=8&addressdetails=0&viewbox=${box}&bounded=${refPoint ? 1 : 0}`;
         const res = await fetch(url, { headers: { Accept: "application/json" } });
         if (!res.ok) return [];
         return (await res.json()) || [];
@@ -2087,8 +2092,16 @@ const startPicking = (target) => {
         seen.add(key);
         merged.push(d);
       });
-      // Les vrais points portuaires/marinas (tag OSM) remontent en tête, le reste (villes, lieux-dits) suit.
-      merged.sort((a, b) => (PORT_OSM_TYPES.has(a.type) ? 0 : 1) - (PORT_OSM_TYPES.has(b.type) ? 0 : 1));
+      // Avec un point de référence : le plus proche d'abord (au-delà de 5 km d'écart, sinon on
+      // laisse les vrais points portuaires/marinas remonter en tête comme avant).
+      merged.sort((a, b) => {
+        if (refPoint) {
+          const distA = distanceKm(refPoint.lat, refPoint.lon, parseFloat(a.lat), parseFloat(a.lon));
+          const distB = distanceKm(refPoint.lat, refPoint.lon, parseFloat(b.lat), parseFloat(b.lon));
+          if (Math.abs(distA - distB) > 5) return distA - distB;
+        }
+        return (PORT_OSM_TYPES.has(a.type) ? 0 : 1) - (PORT_OSM_TYPES.has(b.type) ? 0 : 1);
+      });
       return merged.slice(0, 6).map((d) => ({
         label: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon), isPort: PORT_OSM_TYPES.has(d.type),
       }));
@@ -2102,8 +2115,10 @@ const startPicking = (target) => {
     if (rdvGeoTimer.current) clearTimeout(rdvGeoTimer.current);
     if (value.trim().length < 3) { setRdvSuggestions([]); return; }
     setRdvSuggestLoading(true);
+    const refPoint = (cvDestLat != null && cvDestLon != null) ? { lat: cvDestLat, lon: cvDestLon }
+      : pos ? { lat: pos.lat, lon: pos.lon } : null;
     rdvGeoTimer.current = setTimeout(async () => {
-      const results = await geocodeSearch(value);
+      const results = await geocodeSearch(value, refPoint);
       setRdvSuggestions(results);
       setRdvSuggestLoading(false);
     }, 450);
@@ -2114,8 +2129,10 @@ const startPicking = (target) => {
     if (destGeoTimer.current) clearTimeout(destGeoTimer.current);
     if (value.trim().length < 3) { setDestSuggestions([]); return; }
     setDestSuggestLoading(true);
+    const refPoint = (cvRdvLat != null && cvRdvLon != null) ? { lat: cvRdvLat, lon: cvRdvLon }
+      : pos ? { lat: pos.lat, lon: pos.lon } : null;
     destGeoTimer.current = setTimeout(async () => {
-      const results = await geocodeSearch(value);
+      const results = await geocodeSearch(value, refPoint);
       setDestSuggestions(results);
       setDestSuggestLoading(false);
     }, 450);
