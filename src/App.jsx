@@ -2118,11 +2118,16 @@ const startPicking = (target) => {
     const q = query.trim();
     if (!q || q.length < 3) return [];
     try {
+      // bounded=0 partout : le viewbox n'est qu'une préférence de tri pour Nominatim, jamais un
+      // filtre strict — un point de référence proche (RDV/étape précédente) resserre la zone
+      // "préférée", mais une destination légitimement plus lointaine (ex. Bilbao -> La Corogne,
+      // ~500 km) ne doit jamais être exclue des résultats. Le tri par distance côté client
+      // (plus bas) fait le travail de mise en avant du plus proche, sans jamais rien masquer.
       const box = refPoint
         ? `${refPoint.lon - 3},${refPoint.lat + 3},${refPoint.lon + 3},${refPoint.lat - 3}`
         : "-10,50,0,34";
       const fetchOne = async (text) => {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=8&addressdetails=0&viewbox=${box}&bounded=${refPoint ? 1 : 0}`;
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=8&addressdetails=0&viewbox=${box}&bounded=0`;
         const res = await fetch(url, { headers: { Accept: "application/json" } });
         if (!res.ok) return [];
         return (await res.json()) || [];
