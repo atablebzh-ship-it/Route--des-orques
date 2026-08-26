@@ -700,7 +700,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const size = isOrca ? (isRecent ? 54 : 40) : (isRecent ? 42 : 30);
       const fontSize = isOrca ? (isRecent ? 40 : 28) : (isRecent ? 30 : 20);
       const filterCss = isOrca
-        ? `grayscale(1) contrast(6) brightness(0.85) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
+        ? `url(#orca-bw) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
         : `drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color})`;
       const iconInner = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;">${sp.emoji}</div>`;
       const speciesIcon = window.L.divIcon({
@@ -2489,6 +2489,21 @@ const startPicking = (target) => {
     return (
    <div className="relative overflow-hidden" style={{ background: COLORS.bg, fontFamily: "Inter, sans-serif", position: "fixed", inset: 0 }}>
       <style>{FONTS}</style>
+      {/* Filtre seuil noir/blanc strict pour le marqueur orque : tout pixel sous 50% de
+          luminosité devient noir pur, le reste reste blanc pur — plus fiable qu'un simple
+          contrast() CSS qui dépend des teintes exactes de l'emoji source. */}
+      <svg style={{ position: "absolute", width: 0, height: 0 }} aria-hidden="true">
+        <defs>
+          <filter id="orca-bw">
+            <feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0" />
+            <feComponentTransfer>
+              <feFuncR type="discrete" tableValues="0 1" />
+              <feFuncG type="discrete" tableValues="0 1" />
+              <feFuncB type="discrete" tableValues="0 1" />
+            </feComponentTransfer>
+          </filter>
+        </defs>
+      </svg>
 
       {/* Carte marine plein écran, en fond */}
       <div className="absolute inset-0">
