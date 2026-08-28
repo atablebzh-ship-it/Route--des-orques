@@ -540,6 +540,11 @@ const PICK_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/
 // aquacole flottant), plutôt que l'emoji poisson générique. Version HTML brute (pour les
 // divIcon Leaflet, qui n'acceptent pas de JSX) + composant React (pour les boutons de l'UI).
 const FISH_NET_SVG_HTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="1.6" stroke-linecap="round"><ellipse cx="4" cy="4" rx="2.2" ry="1.3" transform="rotate(-40 4 4)" fill="#000000" stroke="none"/><ellipse cx="20" cy="4" rx="2.2" ry="1.3" transform="rotate(40 20 4)" fill="#000000" stroke="none"/><ellipse cx="4" cy="20" rx="2.2" ry="1.3" transform="rotate(40 4 20)" fill="#000000" stroke="none"/><ellipse cx="20" cy="20" rx="2.2" ry="1.3" transform="rotate(-40 20 20)" fill="#000000" stroke="none"/><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="8.5" y1="5" x2="8.5" y2="19"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="15.5" y1="5" x2="15.5" y2="19"/><line x1="5" y1="8.5" x2="19" y2="8.5"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="15.5" x2="19" y2="15.5"/></svg>`;
+
+// Marqueur "orque" : silhouette vectorielle en saut, noir littéral (pas une teinte dérivée
+// d'un emoji) avec œil et ventre blancs — garantit un rendu noir/blanc identique sur tous
+// les navigateurs, contrairement à un filtre CSS appliqué à l'emoji 🐋.
+const ORCA_SVG_HTML = `<svg width="100%" height="100%" viewBox="0 0 100 70" xmlns="http://www.w3.org/2000/svg"><path d="M8,52 C3,47 5,38 14,34 C10,26 16,16 28,12 C25,6 33,2 42,3 C50,4 55,9 57,15 C62,10 71,9 78,14 C73,20 65,23 59,22 C64,28 62,37 53,41 C58,47 55,56 46,58 C47,51 43,47 37,49 C29,52 24,58 15,57 C11,58 5,56 8,52 Z" fill="#000000"/><ellipse cx="46" cy="13" rx="3.4" ry="2.2" transform="rotate(-18 46 13)" fill="#FFFFFF"/><path d="M18,44 C24,39 32,39 38,44 C32,49 24,49 18,44 Z" fill="#FFFFFF"/></svg>`;
 // Icône "voilier" pleine (silhouette solide, façon logo), plutôt que le tracé fin de l'icône
 // Sailboat de lucide-react — plus lisible en petite taille et personnalisable par couleur.
 function SolidSailboatIcon({ size = 16, color = "#5FD0C4", style }) {
@@ -695,16 +700,18 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const sp = speciesInfo(a.species || "orque");
       const isRecent = now - a.createdAt < RECENT_ALERT_MS;
       const color = a.incident ? COLORS.orange : COLORS.cyan;
-      // Les orques restent l'espèce phare de l'appli : marqueur plus grand, rendu en noir et
-      // blanc contrasté (contraste très poussé pour que les zones grises de l'emoji ressortent
-      // en noir franc plutôt qu'en gris terne) pour rester repérable en un coup d'œil.
+      // Les orques restent l'espèce phare de l'appli : silhouette vectorielle en noir littéral
+      // (pas un filtre CSS sur l'emoji — c'était imprévisible selon les teintes de l'emoji,
+      // tantôt trop gris, tantôt viré au blanc) pour un rendu garanti noir/blanc à chaque fois.
       const isOrca = (a.species || "orque") === "orque";
       const size = isOrca ? (isRecent ? 54 : 40) : (isRecent ? 42 : 30);
       const fontSize = isOrca ? (isRecent ? 40 : 28) : (isRecent ? 30 : 20);
       const filterCss = isOrca
-        ? `grayscale(1) contrast(5) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
+        ? `drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
         : `drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color})`;
-      const iconInner = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;">${sp.emoji}</div>`;
+      const iconInner = isOrca
+        ? ORCA_SVG_HTML
+        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;">${sp.emoji}</div>`;
       const speciesIcon = window.L.divIcon({
         html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;opacity:${isRecent ? 1 : 0.75};filter:${filterCss};">${iconInner}</div>`,
         className: "",
