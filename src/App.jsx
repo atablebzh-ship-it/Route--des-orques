@@ -387,31 +387,15 @@ function computeSeaRoute(a, b) {
   const iB = nearestLaneIndex(b.lat, b.lon);
   const start = { lat: a.lat, lon: a.lon };
   const end = { lat: b.lat, lon: b.lon };
-  let path;
-  if (iA === iB) {
-    // Les deux points se rattachent au même repère du couloir (ex : RDV et destination de part
-    // et d'autre d'une presqu'île/ria, comme à Ferrol) : on route quand même via ce point au
-    // large plutôt que de tracer une ligne droite qui peut couper à travers la terre.
-    path = [start, SEA_LANE[iA], end];
-  } else {
-    const step = iA < iB ? 1 : -1;
-    const middle = [];
-    for (let i = iA; i !== iB; i += step) middle.push(SEA_LANE[i]);
-    middle.push(SEA_LANE[iB]);
-    path = [start, ...middle, end];
-  }
-  // Pour deux points proches (ex. des étapes de convoi rapprochées le long de la côte), router
-  // systématiquement via le couloir maritime peut créer un détour disproportionné en zigzag —
-  // le repère de couloir le plus proche de chaque point n'est pas forcément sur le chemin entre
-  // les deux. Sur une aussi courte distance, il n'y a en général pas de terre significative à
-  // contourner : si le détour ajoute beaucoup plus que la distance directe, on trace tout droit.
-  const directDist = distanceKm(a.lat, a.lon, b.lat, b.lon);
-  let pathDist = 0;
-  for (let i = 1; i < path.length; i++) {
-    pathDist += distanceKm(path[i - 1].lat, path[i - 1].lon, path[i].lat, path[i].lon);
-  }
-  if (pathDist > directDist * 1.5 + 20) return [start, end];
-  return path;
+  // Les deux points se rattachent au même repère du couloir (ex : RDV et destination de part et
+  // d'autre d'une presqu'île/ria, comme à Ferrol) : on route quand même via ce point au large plutôt
+  // que de tracer une ligne droite qui peut couper à travers la terre.
+  if (iA === iB) return [start, SEA_LANE[iA], end];
+  const step = iA < iB ? 1 : -1;
+  const middle = [];
+  for (let i = iA; i !== iB; i += step) middle.push(SEA_LANE[i]);
+  middle.push(SEA_LANE[iB]);
+  return [start, ...middle, end];
 }
 
 function timeAgo(ts) {
@@ -429,23 +413,6 @@ function fmtDateTime(iso) {
     return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch (e) {
     return iso;
-  }
-}
-
-// Les dates de convoi (départ/arrivée) sont prévisionnelles et dépendent de la météo — on
-// affiche donc une fourchette autour de la date renseignée plutôt qu'une date figée, pour ne
-// pas donner une fausse impression de précision.
-const CONVOY_DATE_MARGIN_DAYS = 3;
-function fmtDateRange(iso, marginDays = CONVOY_DATE_MARGIN_DAYS) {
-  if (!iso) return "—";
-  try {
-    const center = new Date(iso);
-    const from = new Date(center.getTime() - marginDays * 86400000);
-    const to = new Date(center.getTime() + marginDays * 86400000);
-    const opts = { day: "2-digit", month: "2-digit" };
-    return `${from.toLocaleDateString("fr-FR", opts)} – ${to.toLocaleDateString("fr-FR", opts)}`;
-  } catch (e) {
-    return fmtDateTime(iso);
   }
 }
 
@@ -617,22 +584,20 @@ function FishNetIcon({ size = 20, color = "#000000" }) {
 }
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, focusTarget, mapStyle, onSelectPlace, onSelectConvoyMarker, onSelectAlert }) {
+function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
   const onPickLocationRef = useRef(onPickLocation);
-  const onSelectPlaceRef = useRef(onSelectPlace);
-  const onSelectConvoyMarkerRef = useRef(onSelectConvoyMarker);
-  const onSelectAlertRef = useRef(onSelectAlert);
+  const onJoinConvoyRef = useRef(onJoinConvoy);
+  const onDeleteAlertRef = useRef(onDeleteAlert);
   const alertMarkersRef = useRef({});
   const baseLayerRef = useRef(null);
   const labelsLayerRef = useRef(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
-  useEffect(() => { onSelectPlaceRef.current = onSelectPlace; }, [onSelectPlace]);
-  useEffect(() => { onSelectConvoyMarkerRef.current = onSelectConvoyMarker; }, [onSelectConvoyMarker]);
-  useEffect(() => { onSelectAlertRef.current = onSelectAlert; }, [onSelectAlert]);
+  useEffect(() => { onJoinConvoyRef.current = onJoinConvoy; }, [onJoinConvoy]);
+  useEffect(() => { onDeleteAlertRef.current = onDeleteAlert; }, [onDeleteAlert]);
 
   useEffect(() => {
     if (!mapElRef.current || mapRef.current || !window.L) return;
@@ -737,7 +702,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const size = isOrca ? (isRecent ? 54 : 40) : (isRecent ? 42 : 30);
       const fontSize = isOrca ? (isRecent ? 40 : 28) : (isRecent ? 30 : 20);
       const filterCss = isOrca
-        ? `grayscale(1) contrast(2.5) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
+        ? `grayscale(1) contrast(5) drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 ${isRecent ? 7 : 4}px ${a.incident ? COLORS.orange : "#ffffff"})`
         : `drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 ${isRecent ? 5 : 3}px ${color})`;
       const iconInner = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;line-height:1;">${sp.emoji}</div>`;
       const speciesIcon = window.L.divIcon({
@@ -746,13 +711,32 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
-      // Un seul clic ouvre la mini-fenêtre (plus de bulle au survol en plus de la fenêtre au
-      // clic : les deux s'affichaient en même temps sur les logos d'espèces, notamment orques).
+      const alertDesc = `
+        <div class="orca-tooltip-title">${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} ${a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}</div>
+        <div class="orca-tooltip-meta">${fmtDateTime(new Date(a.createdAt).toISOString())} · ${a.author}</div>
+        <div class="orca-tooltip-meta">${a.lat.toFixed(4)}, ${a.lon.toFixed(4)}</div>
+        ${a.notes ? `<div class="orca-tooltip-notes">${a.notes}</div>` : ""}
+      `;
       const alertMarker = window.L.marker([a.lat, a.lon], { icon: speciesIcon })
-        .on("click", () => onSelectAlertRef.current && onSelectAlertRef.current(a))
+        .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
         .addTo(layer);
 
-      alertMarkersRef.current[a.id] = { marker: alertMarker, alert: a };
+      // Suppression directement depuis la carte : un clic ouvre une bulle avec un bouton
+      // "Supprimer", visible pour l'auteur du signalement ou pour un modérateur.
+      const canDelete = myBoatId && (a.authorId === myBoatId || isModerator);
+      if (canDelete) {
+        const popupHtml = `${alertDesc}<button id="del-alert-${a.id}" style="margin-top:8px;width:100%;padding:8px 10px;border-radius:6px;border:none;background:${COLORS.red};color:#FFFFFF;font-weight:600;font-size:13px;cursor:pointer;">Supprimer ce signalement</button>`;
+        alertMarker.bindPopup(popupHtml, { className: "orca-tooltip", maxWidth: 240 });
+        alertMarker.on("popupopen", () => {
+          const btn = document.getElementById(`del-alert-${a.id}`);
+          if (btn) btn.onclick = () => {
+            alertMarker.closePopup();
+            onDeleteAlertRef.current && onDeleteAlertRef.current(a.id);
+          };
+        });
+      }
+
+      alertMarkersRef.current[a.id] = alertMarker;
     });
 
     // Tous les convois avec un point de RDV s'affichent sur la carte (pas seulement le
@@ -770,14 +754,32 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const accentBg = isMine ? COLORS.green : COLORS.cyan;
       const accentBorder = isMine ? "#0A1F14" : "#0A2E33";
 
-      // Au clic, on ouvre une mini-fenêtre React (comme pour les onglets) au lieu d'une bulle
-      // Leaflet qui se refermait dès qu'on cliquait ailleurs ou qu'on quittait la carte des
-      // yeux : plus lisible, avec les dates de départ/arrivée du convoi, et reste ouverte tant
-      // qu'on ne la ferme pas explicitement.
+      // Une seule bulle par élément, au clic uniquement (plus de tooltip au survol en plus du
+      // popup : les deux se chevauchaient et affichaient des infos différentes au même endroit).
+      // Le popup regroupe tout : repère (RDV/destination/route), organisateur, et le bouton
+      // pour rejoindre quand ce n'est pas déjà ton convoi.
+      const buildPopupHtml = (headline) => {
+        const lines = [`<div class="orca-tooltip-title">${cv.name}</div>`];
+        if (headline) lines.push(`<div class="orca-tooltip-meta">${headline}</div>`);
+        lines.push(`<div class="orca-tooltip-meta">Organisé par ${cv.organizerPseudo} · ${cv.organizerBoat}</div>`);
+        if (isMine) {
+          lines.push(`<div class="orca-tooltip-notes" style="color:${COLORS.green};">Ton convoi</div>`);
+        } else if (isPending) {
+          lines.push(`<div class="orca-tooltip-notes">Demande envoyée — en attente de confirmation</div>`);
+        } else {
+          lines.push(`<button id="join-btn-${cv.id}" style="margin-top:8px;width:100%;padding:9px 10px;border-radius:6px;border:none;background:${COLORS.green};color:#0A1F14;font-weight:600;font-size:13px;cursor:pointer;">Rejoindre le convoi</button>`);
+        }
+        return lines.join("");
+      };
+
       const bindJoinPopup = (marker, headline) => {
-        marker.on("click", () => {
-          onSelectConvoyMarkerRef.current && onSelectConvoyMarkerRef.current({ convoy: cv, headline, isMine, isPending });
-        });
+        marker.bindPopup(buildPopupHtml(headline), { className: "orca-tooltip", maxWidth: 240 });
+        if (!isMine && !isPending) {
+          marker.on("popupopen", () => {
+            const btn = document.getElementById(`join-btn-${cv.id}`);
+            if (btn) btn.onclick = () => onJoinConvoyRef.current && onJoinConvoyRef.current(cv.id);
+          });
+        }
       };
 
       if (hasRdv) {
@@ -806,39 +808,23 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         destMarker.addTo(layer);
       }
 
-      // Étapes intermédiaires du convoi : un petit marqueur numéroté par escale, cliquable
-      // comme le reste (ouvre la même mini-fenêtre, avec la liste complète des étapes).
-      const stages = Array.isArray(cv.waypoints) ? cv.waypoints.filter((w) => w.lat != null && w.lon != null) : [];
-      stages.forEach((wp, i) => {
-        const stageIcon = window.L.divIcon({
-          html: `<div style="width:28px;height:28px;border-radius:50%;background:${accentBg};border:2px solid ${accentBorder};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0A1F14;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">${i + 1}</div>`,
-          className: "",
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        });
-        const stageMarker = window.L.marker([wp.lat, wp.lon], { icon: stageIcon });
-        bindJoinPopup(stageMarker, `Étape ${i + 1}${wp.label ? ` · ${wp.label}` : ""}`);
-        stageMarker.addTo(layer);
-      });
+      if (hasRdv && hasDest) {
+        // Tracé automatique : longe le couloir maritime SEA_LANE plutôt qu'une ligne droite.
+        const seaRoute = computeSeaRoute(
+          { lat: cv.rdvLat, lon: cv.rdvLon },
+          { lat: cv.destLat, lon: cv.destLon }
+        );
+        const routeLatLngs = seaRoute
+          ? seaRoute.map((p) => [p.lat, p.lon])
+          : [[cv.rdvLat, cv.rdvLon], [cv.destLat, cv.destLon]];
 
-      // Tracé automatique : longe le couloir maritime SEA_LANE plutôt qu'une ligne droite,
-      // en passant par chaque étape dans l'ordre (RDV -> étape 1 -> ... -> destination).
-      const routePoints = [
-        ...(hasRdv ? [{ lat: cv.rdvLat, lon: cv.rdvLon }] : []),
-        ...stages,
-        ...(hasDest ? [{ lat: cv.destLat, lon: cv.destLon }] : []),
-      ];
-
-      if (routePoints.length >= 2) {
-        // Aux deux extrémités du trajet global (départ et arrivée finale), le tracé approche
-        // le port en ligne approximative : il ne suit PAS le balisage nautique réel (chenal,
-        // bouées, feux). On distingue visuellement ces segments d'« approche » (fins,
-        // pointillés serrés, discrets) du « couloir » central (large, trait plein) pour
-        // rappeler qu'à l'approche des ports il faut suivre le balisage réel (voir la couche
-        // OpenSeaMap sur la carte) — le couloir central, lui, reste en trait plein pour un
-        // rendu plus lisible / moins "ligne de construction" sur le reste du trajet. Entre deux
-        // étapes intermédiaires, tout le tracé reste en couloir (ni l'une ni l'autre n'est le
-        // vrai départ/la vraie arrivée du convoi).
+        // Aux deux extrémités (départ et arrivée), le tracé approche le port en ligne
+        // approximative : il ne suit PAS le balisage nautique réel (chenal, bouées, feux).
+        // On distingue visuellement ces segments d'« approche » (fins, pointillés serrés,
+        // discrets) du « couloir » central (large, trait plein) pour rappeler qu'à
+        // l'approche des ports il faut suivre le balisage réel (voir la couche OpenSeaMap
+        // sur la carte) — le couloir central, lui, reste en trait plein pour un rendu plus
+        // lisible / moins "ligne de construction" sur le reste du trajet.
         // Ton convoi (noir) reste plus marqué que les convois qu'on peut rejoindre (cyan).
         const routeColor = isMine ? "#000000" : COLORS.cyan;
         const approachStyle = { color: routeColor, weight: isMine ? 2.5 : 2, opacity: isMine ? 0.55 : 0.45, dashArray: "2 6", lineCap: "round" };
@@ -846,37 +832,24 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         const approachHeadline = "Approche du port · balisage nautique réel à suivre (voir bouées/chenal sur la carte)";
         const corridorHeadline = "Route du convoi (indicative)";
 
-        for (let legIdx = 0; legIdx < routePoints.length - 1; legIdx++) {
-          const isFirstLeg = legIdx === 0;
-          const isLastLeg = legIdx === routePoints.length - 2;
-          const seaRoute = computeSeaRoute(routePoints[legIdx], routePoints[legIdx + 1]);
-          const routeLatLngs = seaRoute
-            ? seaRoute.map((p) => [p.lat, p.lon])
-            : [[routePoints[legIdx].lat, routePoints[legIdx].lon], [routePoints[legIdx + 1].lat, routePoints[legIdx + 1].lon]];
-
-          if (routeLatLngs.length <= 2) {
-            const style = (isFirstLeg || isLastLeg) ? approachStyle : corridorStyle;
-            const headline = (isFirstLeg || isLastLeg) ? approachHeadline : corridorHeadline;
-            const line = window.L.polyline(routeLatLngs, style);
-            bindJoinPopup(line, headline);
-            line.addTo(layer);
-            continue;
-          }
-          // Segment de départ de cette portion : approche non balisée seulement si c'est le
-          // tout premier départ du convoi (RDV) — sinon couloir, comme le reste de la portion.
-          const startLine = window.L.polyline([routeLatLngs[0], routeLatLngs[1]], isFirstLeg ? approachStyle : corridorStyle);
-          bindJoinPopup(startLine, isFirstLeg ? approachHeadline : corridorHeadline);
+        if (routeLatLngs.length <= 2) {
+          const line = window.L.polyline(routeLatLngs, corridorStyle);
+          bindJoinPopup(line, corridorHeadline);
+          line.addTo(layer);
+        } else {
+          // Segment de départ (RDV -> 1er repère du couloir) : approche, non balisée.
+          const startLine = window.L.polyline([routeLatLngs[0], routeLatLngs[1]], approachStyle);
+          bindJoinPopup(startLine, approachHeadline);
           startLine.addTo(layer);
-          // Segment central : couloir maritime indicatif entre repères, évite les terres.
+          // Segment central (couloir maritime entre repères) : indicatif mais évite les terres.
           if (routeLatLngs.length > 3) {
             const midLine = window.L.polyline(routeLatLngs.slice(1, -1), corridorStyle);
             bindJoinPopup(midLine, corridorHeadline);
             midLine.addTo(layer);
           }
-          // Segment d'arrivée de cette portion : approche non balisée seulement si c'est la
-          // toute dernière arrivée du convoi (destination) — sinon couloir.
-          const endLine = window.L.polyline([routeLatLngs[routeLatLngs.length - 2], routeLatLngs[routeLatLngs.length - 1]], isLastLeg ? approachStyle : corridorStyle);
-          bindJoinPopup(endLine, isLastLeg ? approachHeadline : corridorHeadline);
+          // Segment d'arrivée (dernier repère du couloir -> destination) : approche, non balisée.
+          const endLine = window.L.polyline([routeLatLngs[routeLatLngs.length - 2], routeLatLngs[routeLatLngs.length - 1]], approachStyle);
+          bindJoinPopup(endLine, approachHeadline);
           endLine.addTo(layer);
         }
       }
@@ -890,8 +863,9 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         iconAnchor: [18, 18],
       });
       SHIPYARDS.forEach((s) => {
+        const yardTooltip = `<div class="orca-tooltip-title">${s.name}</div><div class="orca-tooltip-meta">${s.address}${s.phone ? ` · ${s.phone}` : ""}</div>`;
         window.L.marker([s.lat, s.lon], { icon: wrenchIcon })
-          .on("click", () => onSelectPlaceRef.current && onSelectPlaceRef.current({ type: "yard", icon: "🛠️", name: s.name, address: s.address, phone: s.phone }))
+          .bindTooltip(yardTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .addTo(layer);
       });
     }
@@ -905,11 +879,10 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       });
       RESCUE_STATIONS.forEach((s) => {
         const contact = RESCUE_CONTACT[s.org];
+        const contactLine = contact ? `<div class="orca-tooltip-meta">VHF ${contact.vhf} · ☎ ${contact.phone}</div>` : "";
+        const stationTooltip = `<div class="orca-tooltip-title">${s.name}</div><div class="orca-tooltip-meta">${s.address}</div>${contactLine}`;
         window.L.marker([s.lat, s.lon], { icon: buoyIcon })
-          .on("click", () => onSelectPlaceRef.current && onSelectPlaceRef.current({
-            type: "rescue", icon: "🛟", name: s.name, address: s.address,
-            vhf: contact?.vhf, phone: contact?.phone,
-          }))
+          .bindTooltip(stationTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .addTo(layer);
       });
     }
@@ -922,8 +895,9 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         iconAnchor: [17, 17],
       });
       FISH_FARMS.forEach((f) => {
+        const farmTooltip = `<div class="orca-tooltip-title">🐟 ${f.name}</div><div class="orca-tooltip-meta">${f.address}</div><div class="orca-tooltip-meta">${f.species}</div><div class="orca-tooltip-notes">Position approximative — voir sources officielles pour le cadastre complet</div>`;
         window.L.marker([f.lat, f.lon], { icon: fishFarmIcon })
-          .on("click", () => onSelectPlaceRef.current && onSelectPlaceRef.current({ type: "farm", icon: "🐟", name: f.name, address: f.address, species: f.species }))
+          .bindTooltip(farmTooltip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
           .addTo(layer);
       });
     }
@@ -966,8 +940,8 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     const map = mapRef.current;
     if (!map || !focusTarget || focusTarget.lat == null || focusTarget.lon == null) return;
     map.setView([focusTarget.lat, focusTarget.lon], Math.max(map.getZoom(), 12), { animate: true });
-    const entry = alertMarkersRef.current[focusTarget.id];
-    if (entry) onSelectAlertRef.current && onSelectAlertRef.current(entry.alert);
+    const marker = alertMarkersRef.current[focusTarget.id];
+    if (marker) marker.openTooltip();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget]);
 
@@ -1015,16 +989,6 @@ const TRANSLATIONS = {
     noHistoryAlerts: "Aucun signalement dans l'historique pour l'instant.",
     officialSourcesTitle: "Sources officielles",
     officialSourcesDesc: "Pour les données antérieures et les statistiques complètes par espèce :",
-    convoyOrganizedBy: (pseudo, boat) => `Organisé par ${pseudo} · ${boat}`,
-    convoyYours: "Ton convoi",
-    convoyPending: "Demande envoyée — en attente de confirmation",
-    convoyJoinBtn: "Rejoindre le convoi",
-    departureLabel: "Départ",
-    etaLabel: "Arrivée prévue",
-    approxPosition: "Position approximative — voir sources officielles pour le cadastre complet",
-    closeLabel: "Fermer",
-    weatherMarginNote: "Dates à ± 3 jours selon la météo",
-    stagesLabel: "Étapes",
   },
   en: {
     loginTagline: "Sign in with a magic link — no password to remember.",
@@ -1054,16 +1018,6 @@ const TRANSLATIONS = {
     noHistoryAlerts: "No reports in the history yet.",
     officialSourcesTitle: "Official sources",
     officialSourcesDesc: "For past data and full statistics per species:",
-    convoyOrganizedBy: (pseudo, boat) => `Organized by ${pseudo} · ${boat}`,
-    convoyYours: "Your convoy",
-    convoyPending: "Request sent — awaiting confirmation",
-    convoyJoinBtn: "Join the convoy",
-    departureLabel: "Departure",
-    etaLabel: "Expected arrival",
-    approxPosition: "Approximate position — see official sources for the full register",
-    closeLabel: "Close",
-    weatherMarginNote: "Dates ± 3 days depending on weather",
-    stagesLabel: "Stages",
   },
   es: {
     loginTagline: "Inicia sesión con un enlace mágico — sin contraseña que recordar.",
@@ -1093,16 +1047,6 @@ const TRANSLATIONS = {
     noHistoryAlerts: "Aún no hay reportes en el historial.",
     officialSourcesTitle: "Fuentes oficiales",
     officialSourcesDesc: "Para datos anteriores y estadísticas completas por especie:",
-    convoyOrganizedBy: (pseudo, boat) => `Organizado por ${pseudo} · ${boat}`,
-    convoyYours: "Tu convoy",
-    convoyPending: "Solicitud enviada — a la espera de confirmación",
-    convoyJoinBtn: "Unirse al convoy",
-    departureLabel: "Salida",
-    etaLabel: "Llegada prevista",
-    approxPosition: "Posición aproximada — consulta las fuentes oficiales para el registro completo",
-    closeLabel: "Cerrar",
-    weatherMarginNote: "Fechas ± 3 días según el tiempo",
-    stagesLabel: "Etapas",
   },
   pt: {
     loginTagline: "Entrar com link mágico — sem senha para lembrar.",
@@ -1132,16 +1076,6 @@ const TRANSLATIONS = {
     noHistoryAlerts: "Ainda não há relatos no histórico.",
     officialSourcesTitle: "Fontes oficiais",
     officialSourcesDesc: "Para dados anteriores e estatísticas completas por espécie:",
-    convoyOrganizedBy: (pseudo, boat) => `Organizado por ${pseudo} · ${boat}`,
-    convoyYours: "O teu comboio",
-    convoyPending: "Pedido enviado — a aguardar confirmação",
-    convoyJoinBtn: "Juntar-me ao comboio",
-    departureLabel: "Partida",
-    etaLabel: "Chegada prevista",
-    approxPosition: "Posição aproximada — ver fontes oficiais para o registo completo",
-    closeLabel: "Fechar",
-    weatherMarginNote: "Datas ± 3 dias consoante o tempo",
-    stagesLabel: "Etapas",
   },
 };
 
@@ -1194,11 +1128,9 @@ export default function RouteDesOrques() {
   const [tab, setTab] = useState("carte");
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
-  // Couches optionnelles (chantiers/secours/élevage) : masquées par défaut au démarrage pour
-  // ne pas surcharger la carte — l'utilisateur les active lui-même via le menu "Couches".
-  const [showShipyards, setShowShipyards] = useState(false);
-  const [showFishFarms, setShowFishFarms] = useState(false);
-  const [showRescueStations, setShowRescueStations] = useState(false);
+  const [showShipyards, setShowShipyards] = useState(true);
+  const [showFishFarms, setShowFishFarms] = useState(true);
+  const [showRescueStations, setShowRescueStations] = useState(true);
   const [showLayersMenu, setShowLayersMenu] = useState(false);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
@@ -1228,11 +1160,6 @@ export default function RouteDesOrques() {
   const [activeDmPeerId, setActiveDmPeerId] = useState(null);
   const [dmText, setDmText] = useState("");
   const [selectedBoat, setSelectedBoat] = useState(null);
-  // Mini-fenêtres d'info carte (remplacent les bulles Leaflet qui se refermaient au survol) :
-  // un point d'intérêt (chantier/secours/élevage) ou un marqueur/tracé de convoi cliqué.
-  const [selectedPlace, setSelectedPlace] = useState(null);
-  const [selectedConvoyMarker, setSelectedConvoyMarker] = useState(null);
-  const [selectedAlert, setSelectedAlert] = useState(null);
   const [expandedConvoy, setExpandedConvoy] = useState(null);
   const [geoError, setGeoError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1253,14 +1180,6 @@ export default function RouteDesOrques() {
   const [cvEta, setCvEta] = useState("");const [pickTarget, setPickTarget] = useState(null); // "rdv" | "dest" | null
   const cvDepartureRef = useRef(null);
   const cvEtaRef = useRef(null);
-
-  // Étapes intermédiaires du convoi (escales entre le RDV et la destination) : chacune a un
-  // libellé géocodé + coordonnées, et une date estimée de passage optionnelle.
-  const [cvStages, setCvStages] = useState([]); // [{ label, lat, lon, etaAt }]
-  const [cvStageText, setCvStageText] = useState("");
-  const [cvStageSuggestions, setCvStageSuggestions] = useState([]);
-  const [cvStageSuggestLoading, setCvStageSuggestLoading] = useState(false);
-  const stageGeoTimer = useRef(null);
 
   // Suggestions d'adresse (géocodage) pour les champs RDV/destination du formulaire de convoi.
   const [rdvSuggestions, setRdvSuggestions] = useState([]);
@@ -1525,7 +1444,6 @@ if (p) {
           id: cv.id, name: cv.name, organizerId: cv.organizer_id, organizerPseudo: cv.organizer_pseudo, organizerBoat: cv.organizer_boat,
           rdvLabel: cv.rdv_label, rdvLat: cv.rdv_lat, rdvLon: cv.rdv_lon, departureAt: cv.departure_at,
           destLabel: cv.dest_label, destLat: cv.dest_lat, destLon: cv.dest_lon, etaAt: cv.eta_at,
-          waypoints: Array.isArray(cv.waypoints) ? cv.waypoints : [],
           createdAt: new Date(cv.created_at).getTime(),
           members: membersByConvoy[cv.id] || [],
         })));
@@ -2064,7 +1982,6 @@ if (p) {
           dest_lat: cvDestLat,
           dest_lon: cvDestLon,
           eta_at: cvEta || null,
-          waypoints: cvStages,
         })
         .select()
         .single();
@@ -2085,7 +2002,6 @@ if (p) {
       }
       setCvName(""); setCvRdv(""); setCvRdvLat(null); setCvRdvLon(null);
       setCvDeparture(""); setCvDest(""); setCvDestLat(null); setCvDestLon(null); setCvEta("");
-      setCvStages([]); setCvStageText(""); setCvStageSuggestions([]);
       setShowConvoyForm(false);
       setShowLayersMenu(false);
       setTab("convois");
@@ -2123,27 +2039,17 @@ const startPicking = (target) => {
   };
 
   // Géocodage (Nominatim/OpenStreetMap, gratuit, sans clé) pour proposer des lieux au fil de la
-  // saisie dans les champs RDV/destination du formulaire de convoi. Un mot générique comme
-  // "puerto" remonte des centaines de résultats sur toute la façade Brest → Gibraltar (chaque
-  // résultat tombe bien dans cette zone, mais celle-ci est bien trop large pour être utile) :
-  // on resserre donc la recherche (viewbox stricte + tri par distance) autour d'un point de
-  // référence — l'autre point déjà choisi dans le formulaire (RDV pour la destination et
-  // inversement), ou à défaut la position actuelle du bateau — dès qu'on en a un.
+  // saisie dans les champs RDV/destination du formulaire de convoi. Recherche biaisée sur la zone
+  // Brest → Gibraltar (viewbox non stricte), et priorisée vers les ports de plaisance/installations
+  // portuaires (deux requêtes en parallèle : le texte tel quel + le texte préfixé "marina", puis
+  // les résultats tagués port/marina côté OSM remontent en tête de liste).
   const PORT_OSM_TYPES = new Set(["marina", "harbour", "port", "yacht_club", "slipway", "dock", "boatyard"]);
-  const geocodeSearch = async (query, refPoint) => {
+  const geocodeSearch = async (query) => {
     const q = query.trim();
     if (!q || q.length < 3) return [];
     try {
-      // bounded=0 partout : le viewbox n'est qu'une préférence de tri pour Nominatim, jamais un
-      // filtre strict — un point de référence proche (RDV/étape précédente) resserre la zone
-      // "préférée", mais une destination légitimement plus lointaine (ex. Bilbao -> La Corogne,
-      // ~500 km) ne doit jamais être exclue des résultats. Le tri par distance côté client
-      // (plus bas) fait le travail de mise en avant du plus proche, sans jamais rien masquer.
-      const box = refPoint
-        ? `${refPoint.lon - 3},${refPoint.lat + 3},${refPoint.lon + 3},${refPoint.lat - 3}`
-        : "-10,50,0,34";
       const fetchOne = async (text) => {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=8&addressdetails=0&viewbox=${box}&bounded=0`;
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=6&addressdetails=0&viewbox=-10,50,0,34&bounded=0`;
         const res = await fetch(url, { headers: { Accept: "application/json" } });
         if (!res.ok) return [];
         return (await res.json()) || [];
@@ -2157,16 +2063,8 @@ const startPicking = (target) => {
         seen.add(key);
         merged.push(d);
       });
-      // Avec un point de référence : le plus proche d'abord (au-delà de 5 km d'écart, sinon on
-      // laisse les vrais points portuaires/marinas remonter en tête comme avant).
-      merged.sort((a, b) => {
-        if (refPoint) {
-          const distA = distanceKm(refPoint.lat, refPoint.lon, parseFloat(a.lat), parseFloat(a.lon));
-          const distB = distanceKm(refPoint.lat, refPoint.lon, parseFloat(b.lat), parseFloat(b.lon));
-          if (Math.abs(distA - distB) > 5) return distA - distB;
-        }
-        return (PORT_OSM_TYPES.has(a.type) ? 0 : 1) - (PORT_OSM_TYPES.has(b.type) ? 0 : 1);
-      });
+      // Les vrais points portuaires/marinas (tag OSM) remontent en tête, le reste (villes, lieux-dits) suit.
+      merged.sort((a, b) => (PORT_OSM_TYPES.has(a.type) ? 0 : 1) - (PORT_OSM_TYPES.has(b.type) ? 0 : 1));
       return merged.slice(0, 6).map((d) => ({
         label: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon), isPort: PORT_OSM_TYPES.has(d.type),
       }));
@@ -2180,10 +2078,8 @@ const startPicking = (target) => {
     if (rdvGeoTimer.current) clearTimeout(rdvGeoTimer.current);
     if (value.trim().length < 3) { setRdvSuggestions([]); return; }
     setRdvSuggestLoading(true);
-    const refPoint = (cvDestLat != null && cvDestLon != null) ? { lat: cvDestLat, lon: cvDestLon }
-      : pos ? { lat: pos.lat, lon: pos.lon } : null;
     rdvGeoTimer.current = setTimeout(async () => {
-      const results = await geocodeSearch(value, refPoint);
+      const results = await geocodeSearch(value);
       setRdvSuggestions(results);
       setRdvSuggestLoading(false);
     }, 450);
@@ -2194,10 +2090,8 @@ const startPicking = (target) => {
     if (destGeoTimer.current) clearTimeout(destGeoTimer.current);
     if (value.trim().length < 3) { setDestSuggestions([]); return; }
     setDestSuggestLoading(true);
-    const refPoint = (cvRdvLat != null && cvRdvLon != null) ? { lat: cvRdvLat, lon: cvRdvLon }
-      : pos ? { lat: pos.lat, lon: pos.lon } : null;
     destGeoTimer.current = setTimeout(async () => {
-      const results = await geocodeSearch(value, refPoint);
+      const results = await geocodeSearch(value);
       setDestSuggestions(results);
       setDestSuggestLoading(false);
     }, 450);
@@ -2215,38 +2109,6 @@ const startPicking = (target) => {
     setCvDestLat(s.lat);
     setCvDestLon(s.lon);
     setDestSuggestions([]);
-  };
-
-  // Étapes du convoi : recherche biaisée sur la dernière étape déjà ajoutée (ou le RDV, ou la
-  // position actuelle), même logique que pour RDV/destination.
-  const onStageTextChange = (value) => {
-    setCvStageText(value);
-    if (stageGeoTimer.current) clearTimeout(stageGeoTimer.current);
-    if (value.trim().length < 3) { setCvStageSuggestions([]); return; }
-    setCvStageSuggestLoading(true);
-    const last = cvStages[cvStages.length - 1];
-    const refPoint = last ? { lat: last.lat, lon: last.lon }
-      : (cvRdvLat != null && cvRdvLon != null) ? { lat: cvRdvLat, lon: cvRdvLon }
-      : pos ? { lat: pos.lat, lon: pos.lon } : null;
-    stageGeoTimer.current = setTimeout(async () => {
-      const results = await geocodeSearch(value, refPoint);
-      setCvStageSuggestions(results);
-      setCvStageSuggestLoading(false);
-    }, 450);
-  };
-
-  const addStage = (s) => {
-    setCvStages((prev) => [...prev, { label: s.label, lat: s.lat, lon: s.lon, etaAt: null }]);
-    setCvStageText("");
-    setCvStageSuggestions([]);
-  };
-
-  const removeStage = (index) => {
-    setCvStages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const setStageEta = (index, value) => {
-    setCvStages((prev) => prev.map((s, i) => (i === index ? { ...s, etaAt: value || null } : s)));
   };
 
   const requestJoin = async (convoyId) => {
@@ -2545,6 +2407,7 @@ const startPicking = (target) => {
             myBoatId={null}
             focusTarget={null}
             mapStyle="street"
+            onJoinConvoy={() => {}}
           />
         </div>
         <div className="absolute left-0 right-0 z-[1100] flex justify-center px-3" style={{ bottom: 20 }}>
@@ -2689,11 +2552,10 @@ const startPicking = (target) => {
                 showTrails={showTrails}
                 myBoatId={profile.id}
                 isModerator={!!profile.isModerator}
+                onDeleteAlert={deleteAlert}
                 focusTarget={alertFocus}
                 mapStyle={mapStyle}
-                onSelectPlace={setSelectedPlace}
-                onSelectConvoyMarker={setSelectedConvoyMarker}
-                onSelectAlert={setSelectedAlert}
+                onJoinConvoy={onJoinConvoy}
               />
       </div>
 
@@ -3467,7 +3329,7 @@ const startPicking = (target) => {
           <div className="w-full max-w-sm rounded-t-xl p-5 overflow-y-auto" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, maxHeight: "85vh" }}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>CRÉER UN CONVOI</h3>
-              <button onClick={() => { setShowConvoyForm(false); setRdvSuggestions([]); setDestSuggestions([]); setCvStageSuggestions([]); }}><X size={18} style={{ color: COLORS.muted }} /></button>
+              <button onClick={() => { setShowConvoyForm(false); setRdvSuggestions([]); setDestSuggestions([]); }}><X size={18} style={{ color: COLORS.muted }} /></button>
             </div>
             <div className="space-y-3">
               <Field label="Nom du convoi">
@@ -3570,43 +3432,6 @@ const startPicking = (target) => {
                   Le tracé affiché entre RDV et destination est indicatif (couloir maritime approximatif) et ne suit pas le balisage nautique réel — près des ports, suis toujours le chenal et les bouées/feux réels (couche OpenSeaMap sur la carte) plutôt que ce tracé.
                 </p>
               )}
-              <Field label="Étapes (escales intermédiaires, optionnel)">
-                {cvStages.length > 0 && (
-                  <div className="space-y-2 mb-2">
-                    {cvStages.map((s, i) => (
-                      <div key={i} className="rounded p-2 space-y-1.5" style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs" style={{ color: COLORS.text }}>{i + 1}. {s.label}</span>
-                          <button type="button" onClick={() => removeStage(i)}><X size={14} style={{ color: COLORS.muted }} /></button>
-                        </div>
-                        <input type="datetime-local" value={s.etaAt || ""} onChange={(e) => setStageEta(i, e.target.value)}
-                          className="w-full px-2 py-1.5 rounded outline-none text-xs" style={inputStyle} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="relative">
-                  <input value={cvStageText} onChange={(e) => onStageTextChange(e.target.value)} placeholder="Ex. Saint-Sébastien"
-                    autoComplete="off"
-                    className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
-                  {cvStageSuggestLoading && (
-                    <p className="text-xs mt-1" style={{ color: COLORS.muted }}>Recherche…</p>
-                  )}
-                  {cvStageSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 z-10 mt-1 rounded overflow-hidden shadow-lg"
-                      style={{ background: COLORS.panelAlt, border: `1px solid ${COLORS.border}` }}>
-                      {cvStageSuggestions.map((s, i) => (
-                        <button key={i} type="button" onClick={() => addStage(s)}
-                          className="w-full text-left px-3 py-2 text-xs flex items-start gap-1.5"
-                          style={{ color: COLORS.text, borderBottom: i < cvStageSuggestions.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
-                          {s.isPort && <Anchor size={12} className="shrink-0 mt-0.5" style={{ color: COLORS.cyan }} />}
-                          <span>{s.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Field>
               <Field label="Heure d'arrivée estimée">
                 <div className="flex items-center gap-2">
                   <input ref={cvEtaRef} type="datetime-local" value={cvEta} onChange={(e) => setCvEta(e.target.value)}
@@ -3677,141 +3502,6 @@ const startPicking = (target) => {
                 Voir sur la carte
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Fiche point d'intérêt (chantier naval / station de secours / élevage) : s'ouvre au clic
-          sur le marqueur et reste ouverte tant qu'on ne la ferme pas explicitement — remplace
-          l'ancienne bulle Leaflet au survol, qui disparaissait dès qu'on quittait le marqueur
-          des yeux (ou ne s'affichait jamais au tactile). */}
-      {selectedPlace && (
-        <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedPlace(null)}>
-          <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <span style={{ fontSize: 26 }}>{selectedPlace.icon}</span>
-                <p className="text-sm font-medium" style={{ color: COLORS.text }}>{selectedPlace.name}</p>
-              </div>
-              <button onClick={() => setSelectedPlace(null)}><X size={18} style={{ color: COLORS.muted }} /></button>
-            </div>
-            <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${COLORS.border}` }}>
-              <div className="text-sm" style={{ color: COLORS.text }}>{selectedPlace.address}</div>
-              {selectedPlace.species && (
-                <div className="text-sm" style={{ color: COLORS.muted }}>{selectedPlace.species}</div>
-              )}
-              {(selectedPlace.vhf || selectedPlace.phone) && (
-                <div className="flex items-center gap-3 text-sm" style={{ color: COLORS.text }}>
-                  {selectedPlace.vhf && <span>VHF {selectedPlace.vhf}</span>}
-                  {selectedPlace.phone && <span>☎ {selectedPlace.phone}</span>}
-                </div>
-              )}
-              {selectedPlace.type === "farm" && (
-                <div className="text-xs" style={{ color: COLORS.muted }}>{t.approxPosition}</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Fiche observation/incident cliqué sur la carte (marqueur d'espèce, orques compris) :
-          avant, un clic pouvait afficher à la fois la bulle au survol ET la fenêtre de
-          suppression — désormais un seul clic, une seule mini-fenêtre. */}
-      {selectedAlert && (() => {
-        const a = selectedAlert;
-        const sp = speciesInfo(a.species || "orque");
-        const canDelete = profile && (a.authorId === profile.id || profile.isModerator);
-        return (
-          <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedAlert(null)}>
-            <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <span style={{ fontSize: 26 }}>{sp.emoji}</span>
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: COLORS.text }}>
-                      {a.incident ? "⚠️ Incident" : "Observation"} · {a.count} {a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}
-                    </p>
-                    <p className="text-xs" style={{ color: COLORS.muted }}>{fmtDateTime(new Date(a.createdAt).toISOString())} · {a.author}</p>
-                  </div>
-                </div>
-                <button onClick={() => setSelectedAlert(null)}><X size={18} style={{ color: COLORS.muted }} /></button>
-              </div>
-              <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                <div className="text-sm" style={{ color: COLORS.text }}>{a.lat.toFixed(4)}, {a.lon.toFixed(4)}</div>
-                {a.notes && <div className="text-sm" style={{ color: COLORS.muted }}>{a.notes}</div>}
-              </div>
-              {canDelete && (
-                <button
-                  onClick={() => { deleteAlert(a.id); setSelectedAlert(null); }}
-                  className="w-full mt-4 py-2 rounded text-sm font-medium"
-                  style={{ background: COLORS.red, color: "#FFFFFF" }}
-                >
-                  Supprimer ce signalement
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Fiche convoi cliqué sur la carte (repère RDV/destination ou tracé du couloir) : même
-          habillage mini-fenêtre que le reste, avec les dates de départ/arrivée du convoi. */}
-      {selectedConvoyMarker && (
-        <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedConvoyMarker(null)}>
-          <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-sm font-medium" style={{ color: COLORS.text }}>{selectedConvoyMarker.convoy.name}</p>
-                {selectedConvoyMarker.headline && (
-                  <p className="text-xs" style={{ color: COLORS.muted }}>{selectedConvoyMarker.headline}</p>
-                )}
-              </div>
-              <button onClick={() => setSelectedConvoyMarker(null)}><X size={18} style={{ color: COLORS.muted }} /></button>
-            </div>
-            <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${COLORS.border}` }}>
-              <div className="flex items-center justify-between text-sm">
-                <span style={{ color: COLORS.muted }}>{t.convoyOrganizedBy(selectedConvoyMarker.convoy.organizerPseudo, selectedConvoyMarker.convoy.organizerBoat)}</span>
-              </div>
-              {selectedConvoyMarker.convoy.departureAt && (
-                <div className="flex items-center justify-between text-sm">
-                  <span style={{ color: COLORS.muted }}>{t.departureLabel}</span>
-                  <span style={{ color: COLORS.text }}>{fmtDateRange(selectedConvoyMarker.convoy.departureAt)}</span>
-                </div>
-              )}
-              {selectedConvoyMarker.convoy.etaAt && (
-                <div className="flex items-center justify-between text-sm">
-                  <span style={{ color: COLORS.muted }}>{t.etaLabel}</span>
-                  <span style={{ color: COLORS.text }}>{fmtDateRange(selectedConvoyMarker.convoy.etaAt)}</span>
-                </div>
-              )}
-              {(selectedConvoyMarker.convoy.departureAt || selectedConvoyMarker.convoy.etaAt) && (
-                <div className="text-xs" style={{ color: COLORS.muted }}>{t.weatherMarginNote}</div>
-              )}
-            </div>
-            {Array.isArray(selectedConvoyMarker.convoy.waypoints) && selectedConvoyMarker.convoy.waypoints.length > 0 && (
-              <div className="pt-3 mt-3 space-y-1.5" style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                <p className="text-xs font-medium" style={{ color: COLORS.muted }}>{t.stagesLabel}</p>
-                {selectedConvoyMarker.convoy.waypoints.map((wp, i) => (
-                  <div key={i} className="flex items-center justify-between gap-2 text-sm">
-                    <span style={{ color: COLORS.text }}>{i + 1}. {wp.label || "—"}</span>
-                    {wp.etaAt && <span className="shrink-0" style={{ color: COLORS.muted }}>{fmtDateRange(wp.etaAt)}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-            {selectedConvoyMarker.isMine ? (
-              <div className="mt-4 text-sm font-medium" style={{ color: COLORS.green }}>{t.convoyYours}</div>
-            ) : selectedConvoyMarker.isPending ? (
-              <div className="mt-4 text-sm" style={{ color: COLORS.muted }}>{t.convoyPending}</div>
-            ) : (
-              <button
-                onClick={() => { onJoinConvoy(selectedConvoyMarker.convoy.id); setSelectedConvoyMarker(null); }}
-                className="w-full mt-4 py-2 rounded text-sm font-medium"
-                style={{ background: COLORS.green, color: "#0A1F14" }}
-              >
-                {t.convoyJoinBtn}
-              </button>
-            )}
           </div>
         </div>
       )}
