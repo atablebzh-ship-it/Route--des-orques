@@ -2045,41 +2045,40 @@ const startPicking = (target) => {
     setShowConvoyForm(true);
   };
 
-  // Géocodage (Nominatim/OpenStreetMap, gratuit, sans clé) pour proposer des lieux au fil de la
-  // saisie dans les champs RDV/destination du formulaire de convoi. Recherche biaisée sur la zone
-  // Brest → Gibraltar (viewbox non stricte), et priorisée vers les ports de plaisance/installations
-  // portuaires (deux requêtes en parallèle : le texte tel quel + le texte préfixé "marina", puis
-  // les résultats tagués port/marina côté OSM remontent en tête de liste).
-  const PORT_OSM_TYPES = new Set(["marina", "harbour", "port", "yacht_club", "slipway", "dock", "boatyard"]);
+  // Géocodage (Photon/Komoot, basé sur OpenStreetMap, gratuit, sans clé) pour proposer des lieux
+  // au fil de la saisie dans les champs RDV/destination du formulaire de convoi. Photon est conçu
+  // pour l'autocomplétion (contrairement à Nominatim, dont la politique d'usage l'interdit), et son
+  // classement par pertinence est bien meilleur sur les noms de ports/villes que le hack
+  // "marina + texte" utilisé précédemment avec Nominatim. Biais géographique doux sur la zone
+  // Brest → Gibraltar via lat/lon/zoom (pas une restriction stricte, juste une priorité).
+  const PORT_OSM_VALUES = new Set(["marina", "harbour", "port", "yacht_club", "slipway", "dock", "boatyard"]);
   const geocodeSearch = async (query) => {
     const q = query.trim();
     if (!q || q.length < 3) return [];
     try {
-      const fetchOne = async (text) => {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=6&addressdetails=0&viewbox=-10,50,0,34&bounded=0`;
-        const res = await fetch(url, { headers: { Accept: "application/json" } });
-        if (!res.ok) return [];
-        return (await res.json()) || [];
-      };
-      const [marinaResults, plainResults] = await Promise.all([fetchOne(`marina ${q}`), fetchOne(q)]);
-      const seen = new Set();
-      const merged = [];
-      [...marinaResults, ...plainResults].forEach((d) => {
-        const key = `${Math.round(parseFloat(d.lat) * 500)},${Math.round(parseFloat(d.lon) * 500)}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        merged.push(d);
-      });
-      // Les vrais points portuaires/marinas (tag OSM) remontent en tête, le reste (villes, lieux-dits) suit.
-      merged.sort((a, b) => (PORT_OSM_TYPES.has(a.type) ? 0 : 1) - (PORT_OSM_TYPES.has(b.type) ? 0 : 1));
-      return merged.slice(0, 6).map((d) => ({
-        label: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon), isPort: PORT_OSM_TYPES.has(d.type),
-      }));
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=fr&lat=44&lon=-6&zoom=6`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const features = data?.features || [];
+      const mapped = features.map((f) => {
+        const p = f.properties || {};
+        const [lon, lat] = f.geometry?.coordinates || [];
+        const parts = [p.name, p.city, p.state, p.country].filter(Boolean);
+        return {
+          label: parts.join(", "),
+          lat,
+          lon,
+          isPort: PORT_OSM_VALUES.has(p.osm_value),
+        };
+      }).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon) && r.label);
+      // Les vrais points portuaires/marinas (tag OSM) remontent en tête, le reste suit.
+      mapped.sort((a, b) => (b.isPort ? 1 : 0) - (a.isPort ? 1 : 0));
+      return mapped.slice(0, 6);
     } catch (e) {
       return [];
     }
   };
-
   const onRdvTextChange = (value) => {
     setCvRdv(value);
     if (rdvGeoTimer.current) clearTimeout(rdvGeoTimer.current);
