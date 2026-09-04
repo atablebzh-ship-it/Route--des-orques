@@ -493,18 +493,15 @@ function Badge({ children, color, bg }) {
   );
 }
 
-function IconBtn({ onClick, active, children, label }) {
+function IconBtn({ onClick, active, children, label, badgeCount }) {
   return (
     <button
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="flex items-center justify-center rounded-full shadow-lg"
+      className="relative flex items-center justify-center rounded-full shadow-lg"
       style={{
         color: active ? COLORS.cyan : COLORS.text,
-        /* Fond sombre uniforme (comme Observations) sur tous les boutons, actif ou non —
-           seule la couleur de bordure/texte change pour indiquer l'état actif. Icônes seules
-           (sans libellé sous l'icône) pour rester compact sur mobile. */
         background: "rgba(37,72,100,0.92)",
         backdropFilter: "blur(12px)",
         border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
@@ -514,6 +511,14 @@ function IconBtn({ onClick, active, children, label }) {
       }}
     >
       {children}
+      {badgeCount > 0 && (
+        <span
+          className="absolute flex items-center justify-center rounded-full text-[10px] font-medium"
+          style={{ top: -3, right: -3, minWidth: 16, height: 16, padding: "0 4px", background: COLORS.orange, color: "#1A0E08", lineHeight: 1 }}
+        >
+          {badgeCount > 9 ? "9+" : badgeCount}
+        </span>
+      )}
     </button>
   );
 }
@@ -1132,7 +1137,7 @@ export default function RouteDesOrques() {
   const [alerts, setAlerts] = useState([]);
   const [chat, setChat] = useState([]);
   const [convoys, setConvoys] = useState([]);
-  const [tab, setTab] = useState("carte");
+  const [unreadChat, setUnreadChat] = useState(0);
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
   const [showShipyards, setShowShipyards] = useState(true);
@@ -1205,7 +1210,10 @@ export default function RouteDesOrques() {
   const watchIdRef = useRef(null);
   const lastPublishRef = useRef(0);
 
-  const chatEndRef = useRef(null);
+  const chatEndRef = useRef(null);  const tabRef = useRef(tab);
+  const seenChatIdsRef = useRef(null);
+  const seenDmIdsRef = useRef(null);
+  useEffect(() => { tabRef.current = tab; }, [tab]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -1425,20 +1433,37 @@ if (p) {
         setAlerts(alertsRes.data.map((a) => ({
           id: a.id, authorId: a.author_id, author: a.author, boatName: a.boat_name,
           lat: a.lat, lon: a.lon, count: a.count, notes: a.notes, incident: !!a.incident, createdAt: new Date(a.created_at).getTime(),
-          species: a.species || "orque",
-        })));
-      }
-
-      if (chatRes.data) {
-        setChat(chatRes.data.map((m) => ({
+          species: a.species || "orque",      if (chatRes.data) {
+             if (chatRes.data) {
+        const newChat = chatRes.data.map((m) => ({
           id: m.id, author: m.author, boatName: m.boat_name, text: m.text, createdAt: new Date(m.created_at).getTime(),
-        })));
+        }));
+        setChat(newChat);
+        const newChatIds = new Set(newChat.map((m) => m.id));
+        if (seenChatIdsRef.current === null) {
+          seenChatIdsRef.current = newChatIds;
+        } else {
+          const unseen = newChat.filter((m) => !seenChatIdsRef.current.has(m.id)).length;
+          if (unseen > 0 && tabRef.current !== "chat") setUnreadChat((prev) => prev + unseen);
+          seenChatIdsRef.current = newChatIds;
+        }
       }
 
       if (dmsRes.data) {
-        setDms(dmsRes.data.map((m) => ({
+        const newDms = dmsRes.data.map((m) => ({
           id: m.id, fromId: m.from_id, toId: m.to_id, fromPseudo: m.from_pseudo, fromBoatName: m.from_boat_name,
           text: m.text, createdAt: new Date(m.created_at).getTime(),
+        }));
+        setDms(newDms);
+        const newDmIds = new Set(newDms.map((m) => m.id));
+        if (seenDmIdsRef.current === null) {
+          seenDmIdsRef.current = newDmIds;
+        } else {
+          const unseen = newDms.filter((m) => !seenDmIdsRef.current.has(m.id)).length;
+          if (unseen > 0 && tabRef.current !== "chat") setUnreadChat((prev) => prev + unseen);
+          seenDmIdsRef.current = newDmIds;
+        }
+      }
         })));
       }
 
@@ -1448,10 +1473,14 @@ if (p) {
           (membersByConvoy[m.convoy_id] ||= []).push({ boatId: m.boat_id, pseudo: m.pseudo, boatName: m.boat_name, status: m.status });
         });
         setConvoys(convoysRes.data.map((cv) => ({
-          id: cv.id, name: cv.name, organizerId: cv.organizer_id, organizerPseudo: cv.organizer_pseudo, organizerBoat: cv.organizer_boat,
-          rdvLabel: cv.rdv_label, rdvLat: cv.rdv_lat, rdvLon: cv.rdv_lon, departureAt: cv.departure_at,
-          destLabel: cv.dest_label, destLat: cv.dest_lat, destLon: cv.dest_lon, etaAt: cv.eta_at,
-          createdAt: new Date(cv.created_at).getTime(),
+       useEffect(() => {
+    if (tab === "chat") {
+      setUnreadChat(0);
+      if (chatEndRef.current) {
+        chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [chat, dms, activeDmPeerId, tab]);
           members: membersByConvoy[cv.id] || [],
         })));
       }
@@ -2559,7 +2588,7 @@ const startPicking = (target) => {
                 myBoatId={profile.id}
                 isModerator={!!profile.isModerator}
                 onDeleteAlert={deleteAlert}
-                focusTarget={alertFocus}
+                      <IconBtn onClick={() => openTab("chat")} active={tab === "chat"} label={t.tabChat} badgeCount={unreadChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
                 mapStyle={mapStyle}
                 onJoinConvoy={onJoinConvoy}
               />
