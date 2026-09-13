@@ -1396,7 +1396,7 @@ if (p) {
     }
   };
 
-  const fetchShared = useCallback(async () => {
+   const fetchShared = useCallback(async () => {
     try {
       const [boatsRes, alertsRes, chatRes, convoysRes, membersRes, dmsRes] = await Promise.all([
         supabase.from("boats").select("*"),
@@ -1433,11 +1433,11 @@ if (p) {
         setAlerts(alertsRes.data.map((a) => ({
           id: a.id, authorId: a.author_id, author: a.author, boatName: a.boat_name,
           lat: a.lat, lon: a.lon, count: a.count, notes: a.notes, incident: !!a.incident, createdAt: new Date(a.created_at).getTime(),
-            species: a.species || "orque",
-          })));
+          species: a.species || "orque",
+        })));
       }
 
-      if (chatRes.data) {  
+      if (chatRes.data) {
         const newChat = chatRes.data.map((m) => ({
           id: m.id, author: m.author, boatName: m.boat_name, text: m.text, createdAt: new Date(m.created_at).getTime(),
         }));
@@ -1467,8 +1467,6 @@ if (p) {
           seenDmIdsRef.current = newDmIds;
         }
       }
-        })));
-      }
 
       if (convoysRes.data) {
         const membersByConvoy = {};
@@ -1476,14 +1474,10 @@ if (p) {
           (membersByConvoy[m.convoy_id] ||= []).push({ boatId: m.boat_id, pseudo: m.pseudo, boatName: m.boat_name, status: m.status });
         });
         setConvoys(convoysRes.data.map((cv) => ({
-       useEffect(() => {
-    if (tab === "chat") {
-      setUnreadChat(0);
-      if (chatEndRef.current) {
-        chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-      }
-    }
-  }, [chat, dms, activeDmPeerId, tab]);
+          id: cv.id, name: cv.name, organizerId: cv.organizer_id, organizerPseudo: cv.organizer_pseudo, organizerBoat: cv.organizer_boat,
+          rdvLabel: cv.rdv_label, rdvLat: cv.rdv_lat, rdvLon: cv.rdv_lon, departureAt: cv.departure_at,
+          destLabel: cv.dest_label, destLat: cv.dest_lat, destLon: cv.dest_lon, etaAt: cv.eta_at,
+          createdAt: new Date(cv.created_at).getTime(),
           members: membersByConvoy[cv.id] || [],
         })));
       }
@@ -1500,7 +1494,13 @@ if (p) {
   }, [profile, fetchShared]);
 
   useEffect(() => {
-    if (tab === "chat" && chatEndRef.current) {
+    if (tab === "chat") {
+      setUnreadChat(0);
+      if (chatEndRef.current) {
+        chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [chat, dms, activeDmPeerId, tab]);
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [chat, dms, activeDmPeerId, tab]);
