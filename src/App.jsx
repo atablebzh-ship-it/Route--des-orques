@@ -2,7 +2,6 @@ import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers, Share2 } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
-test
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
