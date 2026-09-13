@@ -1501,9 +1501,6 @@ if (p) {
       }
     }
   }, [chat, dms, activeDmPeerId, tab]);
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [chat, dms, activeDmPeerId, tab]);
 
   // --- Trace : on ajoute un point par bateau (moi + les autres) à chaque nouvelle position connue ---
   useEffect(() => {
@@ -2591,7 +2588,6 @@ const startPicking = (target) => {
                 myBoatId={profile.id}
                 isModerator={!!profile.isModerator}
                 onDeleteAlert={deleteAlert}
-                      <IconBtn onClick={() => openTab("chat")} active={tab === "chat"} label={t.tabChat} badgeCount={unreadChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
                 mapStyle={mapStyle}
                 onJoinConvoy={onJoinConvoy}
               />
@@ -2620,7 +2616,7 @@ const startPicking = (target) => {
           avec les autres onglets en bas. Icônes seules (sans libellé) pour rester compacts
           sur mobile — le nom de l'onglet reste accessible via l'attribut title/aria-label. */}
       <div className="absolute z-[1200] flex flex-col" style={{ top: 72, left: 12, gap: 10 }}>
-        <IconBtn onClick={() => openTab("chat")} active={tab === "chat"} label={t.tabChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
+        <IconBtn onClick={() => openTab("chat")} active={tab === "chat"} label={t.tabChat} badgeCount={unreadChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
         <IconBtn onClick={() => openTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={20} color={COLORS.orange} /></IconBtn>
       </div>
 
