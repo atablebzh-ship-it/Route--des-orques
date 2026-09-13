@@ -1433,8 +1433,11 @@ if (p) {
         setAlerts(alertsRes.data.map((a) => ({
           id: a.id, authorId: a.author_id, author: a.author, boatName: a.boat_name,
           lat: a.lat, lon: a.lon, count: a.count, notes: a.notes, incident: !!a.incident, createdAt: new Date(a.created_at).getTime(),
-          species: a.species || "orque",      if (chatRes.data) {
-             if (chatRes.data) {
+            species: a.species || "orque",
+          })));
+      }
+
+      if (chatRes.data) {  
         const newChat = chatRes.data.map((m) => ({
           id: m.id, author: m.author, boatName: m.boat_name, text: m.text, createdAt: new Date(m.created_at).getTime(),
         }));
