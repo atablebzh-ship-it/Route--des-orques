@@ -1136,6 +1136,7 @@ export default function RouteDesOrques() {
   const [alerts, setAlerts] = useState([]);
   const [chat, setChat] = useState([]);
   const [convoys, setConvoys] = useState([]);
+    const [tab, setTab] = useState("carte");
   const [unreadChat, setUnreadChat] = useState(0);
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
