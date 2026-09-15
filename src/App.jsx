@@ -492,33 +492,47 @@ function Badge({ children, color, bg }) {
   );
 }
 
-function IconBtn({ onClick, active, children, label, badgeCount }) {
+// IconBtn : cible tactile 52px (au-delà du minimum WCAG 44px) + libellé texte
+// toujours visible sous l'icône, plutôt que le seul title/aria-label au survol
+// (inutile au doigt) — option C retenue pour la lisibilité en plein soleil et
+// l'identification rapide en mer. `text` porte le libellé court affiché ;
+// `label` reste utilisé pour l'accessibilité (title/aria-label) et peut être
+// plus descriptif (ex. inclure un compteur déjà porté par le badge visuel).
+function IconBtn({ onClick, active, children, label, text, badgeCount }) {
   return (
-    <button
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className="relative flex items-center justify-center rounded-full shadow-lg"
-      style={{
-        color: active ? COLORS.cyan : COLORS.text,
-        background: "rgba(37,72,100,0.92)",
-        backdropFilter: "blur(12px)",
-        border: `1px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
-        opacity: active ? 1 : 0.85,
-        width: 44,
-        height: 44,
-      }}
-    >
-      {children}
-      {badgeCount > 0 && (
-        <span
-          className="absolute flex items-center justify-center rounded-full text-[10px] font-medium"
-          style={{ top: -3, right: -3, minWidth: 16, height: 16, padding: "0 4px", background: COLORS.orange, color: "#1A0E08", lineHeight: 1 }}
-        >
-          {badgeCount > 9 ? "9+" : badgeCount}
-        </span>
-      )}
-    </button>
+    <div className="flex flex-col items-center" style={{ gap: 4 }}>
+      <button
+        onClick={onClick}
+        title={label}
+        aria-label={label}
+        className="relative flex items-center justify-center rounded-full shadow-lg"
+        style={{
+          color: active ? COLORS.cyan : COLORS.text,
+          background: active ? "rgba(37,72,100,0.98)" : "rgba(37,72,100,0.92)",
+          backdropFilter: "blur(12px)",
+          border: `2px solid ${active ? COLORS.cyan : COLORS.cyanDim}`,
+          opacity: active ? 1 : 0.92,
+          width: 52,
+          height: 52,
+        }}
+      >
+        {children}
+        {badgeCount > 0 && (
+          <span
+            className="absolute flex items-center justify-center rounded-full text-[10px] font-medium"
+            style={{ top: -3, right: -3, minWidth: 16, height: 16, padding: "0 4px", background: COLORS.orange, color: "#1A0E08", lineHeight: 1 }}
+          >
+            {badgeCount > 9 ? "9+" : badgeCount}
+          </span>
+        )}
+      </button>
+      <span
+        className="text-[11px] font-medium"
+        style={{ color: COLORS.text, background: "rgba(29,58,80,0.85)", padding: "1px 7px", borderRadius: 4, lineHeight: 1.3, whiteSpace: "nowrap" }}
+      >
+        {text || label}
+      </span>
+    </div>
   );
 }
 
@@ -2616,8 +2630,8 @@ const startPicking = (target) => {
           avec les autres onglets en bas. Icônes seules (sans libellé) pour rester compacts
           sur mobile — le nom de l'onglet reste accessible via l'attribut title/aria-label. */}
       <div className="absolute z-[1200] flex flex-col" style={{ top: 72, left: 12, gap: 10 }}>
-        <IconBtn onClick={() => openTab("chat")} active={tab === "chat"} label={t.tabChat} badgeCount={unreadChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
-        <IconBtn onClick={() => openTab("profile")} active={tab === "profile"} label={t.tabProfile}><Anchor size={20} color={COLORS.orange} /></IconBtn>
+        <IconBtn onClick={() => openTab("chat")} active={tab === "chat"} label={t.tabChat} text={t.tabChat} badgeCount={unreadChat}><MessageCircle size={20} color="#8C7AE6" /></IconBtn>
+        <IconBtn onClick={() => openTab("profile")} active={tab === "profile"} label={t.tabProfile} text={t.tabProfile}><Anchor size={20} color={COLORS.orange} /></IconBtn>
       </div>
 
       {/* Panneau flottant pour les onglets autres que la carte : la carte reste toujours
@@ -3205,18 +3219,18 @@ const startPicking = (target) => {
           {showLayersMenu && (
             <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
               <button onClick={() => setShowShipyards((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showShipyards ? 1 : 0.4 }}>
-                <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.green, border: "2px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🛠️</span>
-                <span className="text-xs" style={{ color: COLORS.text }}>Chantiers</span>
+                <span style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.green, border: "2px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🛠️</span>
+                <span className="text-xs font-medium" style={{ color: COLORS.text }}>Chantiers</span>
               </button>
               <button onClick={() => setShowRescueStations((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showRescueStations ? 1 : 0.4 }}>
-                <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.orange, border: "2px solid #4A2409", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🛟</span>
-                <span className="text-xs" style={{ color: COLORS.text }}>Secours</span>
+                <span style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.orange, border: "2px solid #4A2409", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🛟</span>
+                <span className="text-xs font-medium" style={{ color: COLORS.text }}>Secours</span>
               </button>
               <button onClick={() => setShowFishFarms((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showFishFarms ? 1 : 0.4 }}>
-                <span style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.cyan, border: "2px solid #0A2E33", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <FishNetIcon size={19} color="#000000" />
+                <span style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.cyan, border: "2px solid #0A2E33", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <FishNetIcon size={22} color="#000000" />
                 </span>
-                <span className="text-xs" style={{ color: COLORS.text }}>Élevage</span>
+                <span className="text-xs font-medium" style={{ color: COLORS.text }}>Élevage</span>
               </button>
             </div>
           )}
@@ -3224,7 +3238,7 @@ const startPicking = (target) => {
               fond. Chaque bouton ci-dessous ouvre son panneau par-dessus la carte ; retaper
               sur le bouton déjà actif (ou le bouton fermer du panneau) referme le panneau et
               redonne directement accès à la carte, sans détour par un onglet séparé. */}
-          <IconBtn onClick={() => openTab("convois")} active={tab === "convois"} label={`${t.tabConvois} (${visibleConvoys.length})`}>
+          <IconBtn onClick={() => openTab("convois")} active={tab === "convois"} label={`${t.tabConvois} (${visibleConvoys.length})`} text={t.tabConvois}>
             <span style={{ position: "relative", display: "inline-block" }}>
               <SolidSailboatIcon size={20} color={COLORS.orange} />
               {visibleConvoys.length > 0 && (
@@ -3236,8 +3250,8 @@ const startPicking = (target) => {
               )}
             </span>
           </IconBtn>
-          <IconBtn onClick={() => openTab("alerts")} active={tab === "alerts"} label={t.tabAlerts}><BinocularsIcon size={20} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
-          <IconBtn onClick={toggleLayersMenu} active={showLayersMenu} label="Couches"><Layers size={18} color={COLORS.cyan} /></IconBtn>
+          <IconBtn onClick={() => openTab("alerts")} active={tab === "alerts"} label={t.tabAlerts} text={t.tabAlerts}><BinocularsIcon size={20} strokeWidth={2.75} color="#FFC94A" /></IconBtn>
+          <IconBtn onClick={toggleLayersMenu} active={showLayersMenu} label="Couches" text="Couches"><Layers size={18} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
 
