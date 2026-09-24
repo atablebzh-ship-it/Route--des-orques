@@ -1627,7 +1627,7 @@ if (p) {
             ...prev,
             [profile.id]: {
               id: profile.id, pseudo: profile.pseudo, boatName: profile.boatName, lat, lon, heading: headingVal, status, updatedAt: Date.now(),
-              alertRadiusKm: prev[profile.id]?.alertRadiusKm ?? DEFAULT_ALERT_RADIUS_KM,
+              alertRadiusKm: prev[profile.id] ? prev[profile.id].alertRadiusKm : DEFAULT_ALERT_RADIUS_KM,
               notifySpecies: prev[profile.id]?.notifySpecies ?? true,
               notifyConvoys: prev[profile.id]?.notifyConvoys ?? true,
               notifyConvoyActivity: prev[profile.id]?.notifyConvoyActivity ?? true,
@@ -3138,7 +3138,8 @@ const startPicking = (target) => {
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {ALERT_RADIUS_OPTIONS.map((km) => {
-                        const current = boats[profile.id]?.alertRadiusKm ?? DEFAULT_ALERT_RADIUS_KM;
+                        const myBoat = boats[profile.id];
+                        const current = myBoat ? myBoat.alertRadiusKm : DEFAULT_ALERT_RADIUS_KM;
                         const active = current === km;
                         return (
                           <button key={km ?? "illimite"} onClick={() => updateAlertRadius(km)}
