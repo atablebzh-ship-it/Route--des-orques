@@ -140,6 +140,17 @@ function fmtDist(km, unit) {
   return unit === "nm" ? `${(km * KM_TO_NM).toFixed(1)} nm` : `${km.toFixed(1)} km`;
 }
 
+// Formate une coordonnée décimale en degrés minutes décimales (ex : 43°38.170'N)
+function fmtDegMin(value, isLat) {
+  if (value == null || Number.isNaN(value)) return "";
+  const hemisphere = isLat ? (value >= 0 ? "N" : "S") : (value >= 0 ? "E" : "O");
+  const abs = Math.abs(value);
+  const deg = Math.floor(abs);
+  const min = (abs - deg) * 60;
+  const degStr = isLat ? String(deg).padStart(2, "0") : String(deg).padStart(3, "0");
+  return `${degStr}°${min.toFixed(3)}'${hemisphere}`;
+}
+
 // Sources scientifiques officielles pour l'historique des observations, par espèce, hors signalements
 // de la communauté — organismes de recherche/associations qui font autorité et sollicitent activement
 // les remontées des plaisanciers (vérifié — voir recherche du 22/08/2026).
@@ -639,6 +650,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
   const alertMarkersRef = useRef({});
   const baseLayerRef = useRef(null);
   const labelsLayerRef = useRef(null);
+  const [centerCoord, setCenterCoord] = useState(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
   useEffect(() => { onJoinConvoyRef.current = onJoinConvoy; }, [onJoinConvoy]);
@@ -663,7 +675,10 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       if (pickModeRef.current && onPickLocationRef.current) {
         onPickLocationRef.current(e.latlng.lat, e.latlng.lng);
       }
-    });mapRef.current = map;
+    });
+    map.on("move", () => setCenterCoord(map.getCenter()));
+    setCenterCoord(map.getCenter());
+    mapRef.current = map;
     return () => {
       map.remove();
       mapRef.current = null;
@@ -993,10 +1008,36 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
   }, [focusTarget]);
 
   return (
-    <div
-      ref={mapElRef}
-    style={{ width: "100%", height: "100%", cursor: pickMode ? PICK_CURSOR : "" }}
-    />
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div
+        ref={mapElRef}
+        style={{ width: "100%", height: "100%", cursor: pickMode ? PICK_CURSOR : "" }}
+      />
+      {pickMode && (
+        <>
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 500 }}>
+            <div style={{ width: 40, height: 40, position: "relative" }}>
+              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 2, background: COLORS.orange, transform: "translateY(-50%)" }} />
+              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: COLORS.orange, transform: "translateX(-50%)" }} />
+              <div style={{ position: "absolute", top: "50%", left: "50%", width: 14, height: 14, borderRadius: "50%", border: `3px solid ${COLORS.orange}`, transform: "translate(-50%, -50%)" }} />
+            </div>
+          </div>
+          <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", zIndex: 500, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            {centerCoord && (
+              <div style={{ background: "rgba(37,72,100,0.95)", border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "6px 12px", fontFamily: "JetBrains Mono, monospace", fontSize: 13, color: COLORS.text, whiteSpace: "nowrap" }}>
+                {fmtDegMin(centerCoord.lat, true)} · {fmtDegMin(centerCoord.lng, false)}
+              </div>
+            )}
+            <button
+              onClick={() => centerCoord && onPickLocationRef.current && onPickLocationRef.current(centerCoord.lat, centerCoord.lng)}
+              style={{ pointerEvents: "auto", padding: "8px 16px", borderRadius: 20, border: "none", background: COLORS.orange, color: "#1A0E08", fontWeight: 600, fontSize: 13, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}
+            >
+              Valider cette position
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
