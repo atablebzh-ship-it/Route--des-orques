@@ -123,6 +123,13 @@ const MAX_CONVOYS = 40;
 // prévue (arrivée, ou départ si pas d'arrivée renseignée) — voir isConvoyExpired plus bas.
 const CONVOY_EXPIRY_BUFFER_MS = 3 * 24 * 3600 * 1000;
 const RECENT_ALERT_MS = 6 * 3600 * 1000;
+// Demande de convoi "en attente" sans réponse de l'organisateur : une relance lui est envoyée
+// après CONVOY_REMINDER_HOURS, puis la demande est acceptée automatiquement après
+// CONVOY_AUTO_ACCEPT_HOURS si elle est toujours sans réponse (voir edge function
+// "convoy-followup", planifiée côté Supabase). Ces deux constantes sont dupliquées côté
+// serveur : les changer ici ne change pas le comportement réel sans changer aussi la fonction.
+const CONVOY_REMINDER_HOURS = 6;
+const CONVOY_AUTO_ACCEPT_HOURS = 24;
 const DEFAULT_ALERT_RADIUS_KM = 100; // rayon par défaut pour les notifications push d'alerte orque
 const ALERT_RADIUS_OPTIONS = [10, 25, 50, 100, 200, null]; // null = illimité (pas de filtre de distance)
 const KM_TO_NM = 0.539957; // 1 km en milles nautiques
@@ -413,6 +420,21 @@ function fmtDateTime(iso) {
   } catch (e) {
     return iso;
   }
+}
+
+// Texte affiché sous une demande de convoi "en attente" — explique le mécanisme de relance /
+// acceptation automatique et donne, une fois le délai de relance passé, un compte à rebours
+// avant l'acceptation automatique (voir CONVOY_REMINDER_HOURS / CONVOY_AUTO_ACCEPT_HOURS).
+function pendingFollowupLabel(requestedAt, reminderSentAt, now) {
+  if (!requestedAt) return null;
+  const hoursElapsed = (now - requestedAt) / 3600000;
+  const hoursLeft = CONVOY_AUTO_ACCEPT_HOURS - hoursElapsed;
+  if (hoursLeft <= 0) return "acceptation automatique en cours…";
+  if (reminderSentAt || hoursElapsed >= CONVOY_REMINDER_HOURS) {
+    const left = hoursLeft < 1 ? "moins d'1 h" : `${Math.ceil(hoursLeft)} h`;
+    return `relance envoyée à l'organisateur · acceptée automatiquement dans ${left} sans réponse`;
+  }
+  return `acceptée automatiquement sous ${CONVOY_AUTO_ACCEPT_HOURS} h sans réponse`;
 }
 
 // --- Export GPX : format standard lu par OpenCPN, Navionics, Garmin, qaRte, SeaNav, etc. ---
@@ -790,7 +812,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         if (isMine) {
           lines.push(`<div class="orca-tooltip-notes" style="color:${COLORS.green};">Ton convoi</div>`);
         } else if (isPending) {
-          lines.push(`<div class="orca-tooltip-notes">Demande envoyée — en attente de confirmation</div>`);
+          lines.push(`<div class="orca-tooltip-notes">Demande envoyée — en attente de confirmation (acceptée automatiquement sous ${CONVOY_AUTO_ACCEPT_HOURS} h sans réponse)</div>`);
         } else {
           lines.push(`<button id="join-btn-${cv.id}" style="margin-top:8px;width:100%;padding:9px 10px;border-radius:6px;border:none;background:${COLORS.green};color:#0A1F14;font-weight:600;font-size:13px;cursor:pointer;">Rejoindre le convoi</button>`);
         }
@@ -1485,7 +1507,13 @@ if (p) {
       if (convoysRes.data) {
         const membersByConvoy = {};
         (membersRes.data || []).forEach((m) => {
-          (membersByConvoy[m.convoy_id] ||= []).push({ boatId: m.boat_id, pseudo: m.pseudo, boatName: m.boat_name, status: m.status });
+          (membersByConvoy[m.convoy_id] ||= []).push({
+            boatId: m.boat_id, pseudo: m.pseudo, boatName: m.boat_name, status: m.status,
+            // "joined_at" est posée à l'insertion de la ligne (donc dès la demande, confirmée ou
+            // non) — elle sert donc déjà de date de demande, pas de colonne dédiée en plus.
+            requestedAt: m.joined_at ? new Date(m.joined_at).getTime() : null,
+            reminderSentAt: m.reminder_sent_at ? new Date(m.reminder_sent_at).getTime() : null,
+          });
         });
         setConvoys(convoysRes.data.map((cv) => ({
           id: cv.id, name: cv.name, organizerId: cv.organizer_id, organizerPseudo: cv.organizer_pseudo, organizerBoat: cv.organizer_boat,
@@ -2704,6 +2732,11 @@ const startPicking = (target) => {
                             <p className="text-xs mt-1" style={{ color: COLORS.cyan }}>
                               {confirmed.length} confirmé{confirmed.length > 1 ? "s" : ""}{pending.length > 0 ? ` · ${pending.length} en attente` : ""}
                             </p>
+                            {!isOrganizer && me?.status === "en_attente" && (
+                              <p className="text-xs mt-1" style={{ color: COLORS.orange }}>
+                                {pendingFollowupLabel(me.requestedAt, me.reminderSentAt, now)}
+                              </p>
+                            )}
                           </button>
 
                           {open && (
@@ -2736,7 +2769,12 @@ const startPicking = (target) => {
                               ))}
                               {isOrganizer && pending.map((m) => (
                                 <div key={m.boatId} className="flex items-center justify-between text-sm">
-                                  <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
+                                  <div>
+                                    <span style={{ color: COLORS.text }}>{m.pseudo} · {m.boatName}</span>
+                                    <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                                      {pendingFollowupLabel(m.requestedAt, m.reminderSentAt, now)}
+                                    </p>
+                                  </div>
                                   <div className="flex items-center gap-2">
                                     <button onClick={() => openDmWith(m.boatId)} title={`Contacter ${m.pseudo}`}
                                       className="flex items-center justify-center rounded-full shrink-0"
