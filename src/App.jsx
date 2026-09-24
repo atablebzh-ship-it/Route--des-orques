@@ -773,11 +773,12 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
+      // Bulle épurée (option B) : titre icône + nombre (+ incident), une seule ligne
+      // méta avec date et position — sans auteur ni notes (ne plus jamais afficher les
+      // mentions d'import/archives, y compris pour les signalements historiques importés).
       const alertDesc = `
-        <div class="orca-tooltip-title">${a.incident ? "⚠️ Incident" : "Observation"} · ${a.count} ${a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}</div>
-        <div class="orca-tooltip-meta">${fmtDateTime(new Date(a.createdAt).toISOString())} · ${a.author}</div>
-        <div class="orca-tooltip-meta">${a.lat.toFixed(4)}, ${a.lon.toFixed(4)}</div>
-        ${a.notes ? `<div class="orca-tooltip-notes">${a.notes}</div>` : ""}
+        <div class="orca-tooltip-title">${sp.emoji} ${a.count} ${a.count > 1 ? sp.labelPlural : sp.label.toLowerCase()}${a.incident ? " · ⚠️ Incident" : ""}</div>
+        <div class="orca-tooltip-meta">${fmtDateTime(new Date(a.createdAt).toISOString())} · ${a.lat.toFixed(4)}, ${a.lon.toFixed(4)}</div>
       `;
       const alertMarker = window.L.marker([a.lat, a.lon], { icon: speciesIcon })
         .bindTooltip(alertDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
