@@ -156,10 +156,7 @@ function fmtDegMin(value, isLat) {
 // de la communauté — organismes de recherche/associations qui font autorité et sollicitent activement
 // les remontées des plaisanciers (vérifié — voir recherche du 22/08/2026).
 const OFFICIAL_SPECIES_SOURCES = {
-  orque: [
-    { label: "GTOA / Orca Ibérica — Groupe de Travail Orques Atlantique", url: "https://www.orcaiberica.org/fr" },
-    { label: "Cruising Association — Signaler une interaction", url: "https://www.theca.org.uk/orcas/interaction-report-form" },
-  ],
+  orque: [],
   dauphin: [
     { label: "PELAGIS (CNRS/La Rochelle) — Signaler une observation en mer", url: "https://www.observatoire-pelagis.cnrs.fr/signaler-une-observation/" },
     { label: "CEMMA — Coordinadora para o Estudo dos Mamíferos Mariños (Galice)", url: "https://www.cemma.org/" },
@@ -3037,7 +3034,7 @@ const startPicking = (target) => {
                           <Panel className="p-4 mt-3">
                             <p className="text-xs uppercase tracking-wider mb-1.5" style={{ color: COLORS.muted }}>{t.officialSourcesTitle}</p>
                             <p className="text-sm mb-2" style={{ color: COLORS.text }}>{t.officialSourcesDesc}</p>
-                            {SPECIES_OPTIONS.filter((sp) => visibleSpecies[sp.key] !== false).map((sp) => (
+                            {SPECIES_OPTIONS.filter((sp) => visibleSpecies[sp.key] !== false && (OFFICIAL_SPECIES_SOURCES[sp.key] || []).length > 0).map((sp) => (
                               <div key={sp.key} className="mb-2.5 last:mb-0">
                                 <p className="text-xs mb-1 flex items-center gap-1.5" style={{ color: COLORS.muted }}>
                                   <span>{sp.emoji}</span> {sp.labelPlural}
