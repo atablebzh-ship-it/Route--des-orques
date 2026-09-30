@@ -66,8 +66,7 @@ export default function SeoContent() {
         </ul>
         <p style={styles.p}>
           La population concernée est un petit groupe d'orques ibériques, aujourd'hui suivi de
-          près par les scientifiques et les associations comme le GTOA (Grupo de Trabajo Orca
-          Atlántica).
+          près par les scientifiques.
         </p>
 
         <h2 style={styles.h2}>Que faire en cas d'interaction avec une orque ?</h2>
@@ -86,8 +85,7 @@ export default function SeoContent() {
         <h2 style={styles.h2}>Historique des signalements</h2>
         <p style={styles.p}>
           L'application propose une carte des signalements récents (moins de 6h) et un
-          historique des interactions passées, alimenté par les déclarations des utilisateurs et
-          croisé avec les données publiques du GTOA et de la Cruising Association.
+          historique des interactions passées, alimenté par les déclarations des utilisateurs.
         </p>
 
         <p style={styles.footer}>
