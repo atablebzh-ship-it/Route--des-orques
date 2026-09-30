@@ -2,6 +2,7 @@ import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers, Share2 } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
+import { AvatarPicker, markerHtml, DEFAULT_AVATAR } from "./avatars.jsx";
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -741,9 +742,13 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       const inMyConvoy = myConvoyMemberIds.includes(b.id);
       const c = b.stale ? COLORS.red : inMyConvoy ? COLORS.cyan : COLORS.green;
       const boatDesc = `${b.pseudo} · ${b.boatName}${b.stale ? " · inactif" : ""}`;
-      window.L.circleMarker([b.lat, b.lon], {
-        radius: 10, color: c, fillColor: c, fillOpacity: b.stale ? 0.45 : 1, weight: 3,
-        dashArray: b.stale ? "4 3" : null,
+      // Logo choisi par l'utilisateur (ou photo) ; l'anneau garde la couleur de statut.
+      window.L.marker([b.lat, b.lon], {
+        icon: window.L.divIcon({
+          className: "",
+          html: markerHtml(b.avatar || DEFAULT_AVATAR, c, b.stale),
+          iconSize: [34, 34], iconAnchor: [17, 17],
+        }),
       })
         .bindTooltip(boatDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
         .on("click", () => onSelectBoat && onSelectBoat(b))
@@ -1047,6 +1052,8 @@ const LANGS = [
   { code: "en", flag: "🇬🇧" },
   { code: "es", flag: "🇪🇸" },
   { code: "pt", flag: "🇵🇹" },
+  { code: "de", flag: "🇩🇪" },
+  { code: "nl", flag: "🇳🇱" },
 ];
 
 const TRANSLATIONS = {
@@ -1166,6 +1173,64 @@ const TRANSLATIONS = {
     officialSourcesTitle: "Fontes oficiais",
     officialSourcesDesc: "Para dados anteriores e estatísticas completas por espécie:",
   },
+  de: {
+    loginTagline: "Anmeldung per Magic-Link — kein Passwort nötig.",
+    slogan: "Gemeinsam segeln, sicherer segeln",
+    codeSent: (email) => `Code an ${email} gesendet. Gib ihn unten ein.`,
+    codeLabel: "Anmeldecode",
+    validateCode: "Code bestätigen",
+    useOtherEmail: "Andere Adresse verwenden",
+    emailLabel: "E-Mail-Adresse",
+    receiveLink: "Anmeldelink erhalten",
+    onboardingTagline: "Schließe dich den Seglern unterwegs an, teile deine Position, Orca-Meldungen und bilde Konvois.",
+    pseudoLabel: "Spitzname",
+    boatNameLabel: "Bootsname",
+    positionLabel: "Aktuelle Position",
+    locateMe: "Mich orten",
+    joinRoute: "Der Route beitreten",
+    onboardingDisclaimer: "Dein Spitzname, dein Boot und deine Position sind für andere Segler in dieser App sichtbar.",
+    tabCarte: "Karte",
+    tabConvois: "Konvois",
+    tabAlerts: "Sichtungen",
+    tabChat: "Chat",
+    tabProfile: "Ich",
+    activeLabel: (n) => `${n} aktiv`,
+    alertsRecent: "Aktuell",
+    alertsHistory: "Verlauf",
+    noRecentAlerts: "Zuletzt keine Sichtungen gemeldet.",
+    noHistoryAlerts: "Noch keine Meldungen im Verlauf.",
+    officialSourcesTitle: "Offizielle Quellen",
+    officialSourcesDesc: "Für ältere Daten und vollständige Statistiken pro Art:",
+  },
+  nl: {
+    loginTagline: "Inloggen met een magische link — geen wachtwoord nodig.",
+    slogan: "Samen zeilen, veiliger zeilen",
+    codeSent: (email) => `Code verzonden naar ${email}. Vul hem hieronder in.`,
+    codeLabel: "Inlogcode",
+    validateCode: "Code bevestigen",
+    useOtherEmail: "Ander adres gebruiken",
+    emailLabel: "E-mailadres",
+    receiveLink: "Inloglink ontvangen",
+    onboardingTagline: "Sluit je aan bij zeilers onderweg om je positie, orca-meldingen te delen en konvooien te vormen.",
+    pseudoLabel: "Bijnaam",
+    boatNameLabel: "Naam van de boot",
+    positionLabel: "Huidige positie",
+    locateMe: "Mijn locatie",
+    joinRoute: "Aansluiten op de route",
+    onboardingDisclaimer: "Je bijnaam, boot en positie zijn zichtbaar voor andere zeilers in deze app.",
+    tabCarte: "Kaart",
+    tabConvois: "Konvooien",
+    tabAlerts: "Waarnemingen",
+    tabChat: "Chat",
+    tabProfile: "Ik",
+    activeLabel: (n) => `${n} actief`,
+    alertsRecent: "Recent",
+    alertsHistory: "Geschiedenis",
+    noRecentAlerts: "Recent geen waarnemingen gemeld.",
+    noHistoryAlerts: "Nog geen meldingen in de geschiedenis.",
+    officialSourcesTitle: "Officiële bronnen",
+    officialSourcesDesc: "Voor oudere gegevens en volledige statistieken per soort:",
+  },
 };
 
 function LangSwitcher({ lang, setLang }) {
@@ -1174,7 +1239,7 @@ function LangSwitcher({ lang, setLang }) {
       {LANGS.map((l) => (
         <button
           key={l.code}
-          onClick={() => setLang(l.code)}
+          onClick={() => { setLang(l.code); try { localStorage.setItem("rdo_lang", l.code); } catch (e) {} }}
           className="text-xl w-9 h-9 rounded flex items-center justify-center"
           style={{ border: `1px solid ${lang === l.code ? COLORS.orange : COLORS.border}`, opacity: lang === l.code ? 1 : 0.5 }}
         >
@@ -1201,7 +1266,16 @@ export default function RouteDesOrques() {
   const [newPassword2, setNewPassword2] = useState("");
   const [recoveryError, setRecoveryError] = useState("");
   const [recoveryDone, setRecoveryDone] = useState(false);
-  const [lang, setLang] = useState("fr");
+  // Langue : choix mémorisé > langue du navigateur (fr/en/es/pt/de/nl) > français.
+  const [lang, setLang] = useState(() => {
+    try {
+      const saved = localStorage.getItem("rdo_lang");
+      if (saved && TRANSLATIONS[saved]) return saved;
+      const nav = (navigator.languages && navigator.languages[0] || navigator.language || "fr").slice(0, 2).toLowerCase();
+      if (TRANSLATIONS[nav]) return nav;
+    } catch (e) {}
+    return "fr";
+  });
   const t = TRANSLATIONS[lang];
 
   const [ready, setReady] = useState(false);
@@ -1255,6 +1329,7 @@ export default function RouteDesOrques() {
   const [saving, setSaving] = useState(false);
 
   const [obPseudo, setObPseudo] = useState("");
+  const [obAvatar, setObAvatar] = useState(null);
   const [obBoat, setObBoat] = useState("");
   const [obLat, setObLat] = useState("");
   const [obLon, setObLon] = useState("");
@@ -1393,7 +1468,7 @@ export default function RouteDesOrques() {
   .eq("id", session?.user?.id)
   .maybeSingle();
 if (p) {
-  setProfile({ id: p.id, pseudo: p.pseudo, boatName: p.boat_name, isModerator: !!p.is_moderator });
+  setProfile({ id: p.id, pseudo: p.pseudo, boatName: p.boat_name, avatar: p.avatar || null, isModerator: !!p.is_moderator });
   if (p.last_lat && p.last_lon) setPos({ lat: p.last_lat, lon: p.last_lon });
 }
       } catch (e) {}
@@ -1491,7 +1566,7 @@ if (p) {
         const map = {};
         boatsRes.data.forEach((b) => {
           map[b.id] = {
-            id: b.id, pseudo: b.pseudo, boatName: b.boat_name, lat: b.lat, lon: b.lon,
+            id: b.id, pseudo: b.pseudo, boatName: b.boat_name, avatar: b.avatar || null, lat: b.lat, lon: b.lon,
             heading: b.heading, status: b.status, updatedAt: new Date(b.updated_at).getTime(),
             alertRadiusKm: b.alert_radius_km === undefined ? DEFAULT_ALERT_RADIUS_KM : b.alert_radius_km,
             // Préférences de notifications push, choisies par chaque utilisateur dans l'onglet
@@ -1618,6 +1693,7 @@ if (p) {
           id: profile.id,
           pseudo: profile.pseudo,
           boat_name: profile.boatName,
+          ...(profile.avatar ? { avatar: profile.avatar } : {}),
           lat, lon,
           heading: headingVal,
           status,
@@ -1627,7 +1703,7 @@ if (p) {
           setBoats((prev) => ({
             ...prev,
             [profile.id]: {
-              id: profile.id, pseudo: profile.pseudo, boatName: profile.boatName, lat, lon, heading: headingVal, status, updatedAt: Date.now(),
+              id: profile.id, pseudo: profile.pseudo, boatName: profile.boatName, avatar: profile.avatar || null, lat, lon, heading: headingVal, status, updatedAt: Date.now(),
               alertRadiusKm: prev[profile.id] ? prev[profile.id].alertRadiusKm : DEFAULT_ALERT_RADIUS_KM,
               notifySpecies: prev[profile.id]?.notifySpecies ?? true,
               notifyConvoys: prev[profile.id]?.notifyConvoys ?? true,
@@ -1833,18 +1909,30 @@ if (p) {
     const lat = parseFloat(obLat);
     const lon = parseFloat(obLon);
     if (!obPseudo.trim() || !obBoat.trim() || Number.isNaN(lat) || Number.isNaN(lon)) return;
-    const p = { id: session.user.id, pseudo: obPseudo.trim(), boatName: obBoat.trim(), lastLat: lat, lastLon: lon };
+    const p = { id: session.user.id, pseudo: obPseudo.trim(), boatName: obBoat.trim(), avatar: obAvatar, lastLat: lat, lastLon: lon };
   try {
   await supabase.from("profiles").upsert({
     id: p.id,
     pseudo: p.pseudo,
     boat_name: p.boatName,
+    ...(p.avatar ? { avatar: p.avatar } : {}),
     last_lat: lat,
     last_lon: lon,
   });
 } catch (e) {}
     setProfile(p);
     setPos({ lat, lon });
+  };
+
+  // Changement de logo / photo depuis l'onglet Moi : profil + fiche publique du bateau.
+  const updateAvatar = async (avatar) => {
+    if (!profile) return;
+    setProfile((p) => ({ ...p, avatar }));
+    setBoats((prev) => (prev[profile.id] ? { ...prev, [profile.id]: { ...prev[profile.id], avatar } } : prev));
+    try {
+      await supabase.from("profiles").update({ avatar }).eq("id", profile.id);
+      await supabase.from("boats").update({ avatar }).eq("id", profile.id);
+    } catch (e) {}
   };
 
   const updatePosition = async (lat, lon) => {
@@ -2554,6 +2642,7 @@ const startPicking = (target) => {
               <input value={obBoat} onChange={(e) => setObBoat(e.target.value)} placeholder="Ex. Albatros II"
                 className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
             </Field>
+            <AvatarPicker value={obAvatar} onChange={setObAvatar} colors={COLORS} />
                          <div>
                 <div className="flex items-center justify-between">
                   <label className="text-xs uppercase tracking-wider" style={{ color: COLORS.muted }}>{t.positionLabel}</label>
@@ -2616,7 +2705,8 @@ const startPicking = (target) => {
   // sort automatiquement — sans être supprimé en base (on garde l'historique côté Supabase).
   const isConvoyExpired = (cv) => {
     const endIso = cv.etaAt || cv.departureAt;
-    if (!endIso) return false; // pas de date renseignée : jamais masqué automatiquement
+    // Sans date : masqué 7 jours après sa création (avant : jamais), pour ne pas rester « en attente » à vie.
+    if (!endIso) return !!cv.createdAt && now - cv.createdAt > 7 * 24 * 3600 * 1000;
     const endTs = new Date(endIso).getTime();
     if (Number.isNaN(endTs)) return false;
     return now - endTs > CONVOY_EXPIRY_BUFFER_MS;
@@ -3063,7 +3153,11 @@ const startPicking = (target) => {
                     {session?.user?.email && <p className="text-xs mt-1" style={{ color: COLORS.muted }}>{session.user.email}</p>}
                     {pos && <p className="text-xs mt-2" style={{ color: COLORS.muted, fontFamily: "JetBrains Mono, monospace" }}>{pos.lat.toFixed(5)}, {pos.lon.toFixed(5)}</p>}
                   </Panel>
-                  
+
+                  <Panel className="p-4">
+                    <AvatarPicker value={profile.avatar} onChange={updateAvatar} colors={COLORS} />
+                  </Panel>
+
                   <button onClick={shareApp} className="w-full py-2.5 rounded font-medium text-sm flex items-center justify-center gap-2"
                     style={{ background: COLORS.cyan, color: "#0A2E33" }}>
                     <Share2 size={16} /> Inviter un ami
