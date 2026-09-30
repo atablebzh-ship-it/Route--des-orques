@@ -1292,9 +1292,9 @@ export default function RouteDesOrques() {
   const [unreadChat, setUnreadChat] = useState(0);
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertsView, setAlertsView] = useState("recentes");
-  const [showShipyards, setShowShipyards] = useState(true);
-  const [showFishFarms, setShowFishFarms] = useState(true);
-  const [showRescueStations, setShowRescueStations] = useState(true);
+  const [showShipyards, setShowShipyards] = useState(false); // masqués au départ pour alléger la carte (menu Couches)
+  const [showFishFarms, setShowFishFarms] = useState(false);
+  const [showRescueStations, setShowRescueStations] = useState(false);
   const [showLayersMenu, setShowLayersMenu] = useState(false);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
@@ -2604,8 +2604,8 @@ const startPicking = (target) => {
             myConvoyMemberIds={[]}
             now={Date.now()}
             onSelectBoat={() => {}}
-            showShipyards={true}
-            showRescueStations={true}
+            showShipyards={false}
+            showRescueStations={false}
             showFishFarms={false}
             pickMode={false}
             onPickLocation={() => {}}
