@@ -3665,12 +3665,6 @@ const openConvoyForm = () => {
                 <span style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.orange, border: "2px solid #4A2409", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🛟</span>
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Secours</span>
               </button>
-              <button onClick={() => setShowFishFarms((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showFishFarms ? 1 : 0.4 }}>
-                <span style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.cyan, border: "2px solid #0A2E33", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <FishNetIcon size={22} color="#000000" />
-                </span>
-                <span className="text-xs font-medium" style={{ color: COLORS.text }}>Élevage</span>
-              </button>
               {profile.isModerator && (
                 <button onClick={() => { setShowModeration(true); setShowLayersMenu(false); }} className="flex flex-col items-center gap-1">
                   <span style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", background: MOORING_DARK, border: `4px dashed ${USER_MOORING_COLOR}`, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: recolorGlyph(ANCHOR_SVG_HTML, USER_MOORING_COLOR, 26) + (pendingMoorings.length ? `<b style="position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;background:#2F5BFF;color:#fff;font-size:12px;line-height:20px;text-align:center">${pendingMoorings.length}</b>` : "") }} />
