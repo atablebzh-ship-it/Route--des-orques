@@ -263,6 +263,26 @@ async function loadAnchorages() {
   return (data.items || []).map((r) => ({ lat: r[0], lon: r[1], name: r[2], cat: r[3], info: r[4], id: r[5] }));
 }
 
+// Échappe le texte venant des fichiers de données avant de l'insérer dans une bulle HTML.
+const escHtml = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Corps-morts / mouillages organisés (ZMEL = zones de mouillages et d'équipements légers) :
+// public/zmel.json, chargé à la demande (voir loadZmel). Données des services de l'État
+// (DDTM Finistère, DDTM Morbihan, DDT(M) Charente-Maritime), Licence Ouverte 2.0. Ce sont des
+// zones autorisées à un titulaire (commune, association…) : les places sont en général
+// réservées, ce ne sont PAS des mouillages libres. Chaque entrée = [lat, lon, site, commune,
+// type, capacité, gestionnaire, année d'échéance, code source].
+const ZMEL_COLOR = "#B7A6F7";
+const ZMEL_PRODUCERS = { F: "DDTM du Finistère", M: "DDTM du Morbihan", C: "DDT(M) de la Charente-Maritime" };
+const ZMEL_SVG_HTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B1238" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4.2"/><path d="M12 12.2V20"/><path d="M8 20.5h8"/></svg>`;
+
+async function loadZmel() {
+  const res = await fetch("/zmel.json");
+  if (!res.ok) throw new Error("zmel.json HTTP " + res.status);
+  const data = await res.json();
+  return (data.items || []).map((r) => ({ lat: r[0], lon: r[1], site: r[2], commune: r[3], type: r[4], cap: r[5], who: r[6], until: r[7], src: r[8] }));
+}
+
 // Chantiers navals / réparateurs (haul-out, urgences) sur la zone Brest → Gibraltar/Cadix
 const SHIPYARDS = [
   { name: "Port de Brest — Réparation Navale", address: "Brest, France", lat: 48.3876, lon: -4.4591, phone: "+33 2 98 14 77 59" },
@@ -659,7 +679,7 @@ function FishNetIcon({ size = 20, color = "#000000" }) {
 }
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, showAnchorages, anchorages, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
+function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, showAnchorages, anchorages, showZmel, zmel, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
@@ -670,6 +690,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
   const baseLayerRef = useRef(null);
   const labelsLayerRef = useRef(null);
   const anchorLayerRef = useRef(null);
+  const zmelLayerRef = useRef(null);
   const [mapZoom, setMapZoom] = useState(null);
   const [centerCoord, setCenterCoord] = useState(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
@@ -706,6 +727,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       map.remove();
       mapRef.current = null;
       anchorLayerRef.current = null;
+      zmelLayerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -731,14 +753,37 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     anchorages.forEach((a) => {
       const title = a.name || ANCHORAGE_CATEGORY_LABELS[a.cat] || "Zone de mouillage";
       const catLine = a.name && ANCHORAGE_CATEGORY_LABELS[a.cat] ? `<div class="orca-tooltip-meta">${ANCHORAGE_CATEGORY_LABELS[a.cat]}</div>` : "";
-      const infoLine = a.info ? `<div class="orca-tooltip-notes">${a.info.replace(/</g, "&lt;")}</div>` : "";
-      const tip = `<div class="orca-tooltip-title">⚓ ${title.replace(/</g, "&lt;")}</div>${catLine}<div class="orca-tooltip-meta">${fmtDegMin(a.lat, true)} ${fmtDegMin(a.lon, false)}</div>${infoLine}<div class="orca-tooltip-notes">Source : OpenSeaMap / OpenStreetMap — à vérifier sur place</div>`;
+      const infoLine = a.info ? `<div class="orca-tooltip-notes">${escHtml(a.info)}</div>` : "";
+      const tip = `<div class="orca-tooltip-title">⚓ ${escHtml(title)}</div>${catLine}<div class="orca-tooltip-meta">${fmtDegMin(a.lat, true)} ${fmtDegMin(a.lon, false)}</div>${infoLine}<div class="orca-tooltip-notes">Source : OpenSeaMap / OpenStreetMap — à vérifier sur place</div>`;
       const marker = detailed
         ? window.L.marker([a.lat, a.lon], { icon: anchorIcon })
         : window.L.circleMarker([a.lat, a.lon], { radius: 5, color: "#1A1405", weight: 1.5, fillColor: ANCHORAGE_COLOR, fillOpacity: 0.95 });
       marker.bindTooltip(tip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 }).addTo(layer);
     });
   }, [showAnchorages, anchorages, mapZoom]);
+
+  // Sous-couche "Corps-morts" (mouillages organisés ZMEL, données DDTM / Licence Ouverte 2.0).
+  // Plus de 900 zones : points légers uniquement (cercles violets), un peu plus gros au zoom
+  // rapproché. Séparée de la couche "Mouillages" car ce ne sont pas des places libres.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !window.L) return;
+    if (!zmelLayerRef.current) zmelLayerRef.current = window.L.layerGroup().addTo(map);
+    const layer = zmelLayerRef.current;
+    layer.clearLayers();
+    if (!showZmel || !zmel || zmel.length === 0) return;
+    const radius = (mapZoom != null ? mapZoom : map.getZoom()) >= 11 ? 8 : 5;
+    zmel.forEach((z) => {
+      const title = z.site || z.commune || "Zone de corps-morts";
+      const typeLine = `<div class="orca-tooltip-meta">${escHtml(z.commune ? z.commune + " · " : "")}${escHtml(z.type || "Zone de mouillage")}</div>`;
+      const capLine = z.cap ? `<div class="orca-tooltip-meta">Capacité : ${z.cap} bateaux</div>` : "";
+      const whoLine = z.who || z.until ? `<div class="orca-tooltip-notes">${z.who ? "Titulaire : " + escHtml(z.who) : ""}${z.who && z.until ? " · " : ""}${z.until ? "échéance " + z.until : ""}</div>` : "";
+      const tip = `<div class="orca-tooltip-title">⚓ ${escHtml(title)}</div>${typeLine}${capLine}${whoLine}<div class="orca-tooltip-notes">Mouillages organisés sous autorisation : places en général réservées, voir le gestionnaire.</div><div class="orca-tooltip-notes">Source : ${escHtml(ZMEL_PRODUCERS[z.src] || "État")} — Licence Ouverte 2.0</div>`;
+      window.L.circleMarker([z.lat, z.lon], { radius, color: "#1B1238", weight: 1.5, fillColor: ZMEL_COLOR, fillOpacity: 0.9 })
+        .bindTooltip(tip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
+        .addTo(layer);
+    });
+  }, [showZmel, zmel, mapZoom]);
 
   // Fond de carte : rue (OpenStreetMap) ou satellite (Esri World Imagery), au choix de
   // l'utilisateur. Toujours en dessous de la surcouche OpenSeaMap (zIndex 2 > 1).
@@ -1350,6 +1395,8 @@ export default function RouteDesOrques() {
   const [showRescueStations, setShowRescueStations] = useState(false);
   const [showAnchorages, setShowAnchorages] = useState(true); // mouillages affichés au départ (avec les orques) ; les autres couches restent en option
   const [anchorages, setAnchorages] = useState([]);
+  const [showZmel, setShowZmel] = useState(false); // corps-morts organisés (ZMEL) : masqués au départ, ce ne sont pas des places libres
+  const [zmel, setZmel] = useState([]);
   const [showLayersMenu, setShowLayersMenu] = useState(false);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
@@ -1432,6 +1479,15 @@ export default function RouteDesOrques() {
       .catch((e) => console.warn("Chargement des mouillages impossible", e));
     return () => { cancelled = true; };
   }, [showAnchorages, anchorages.length]);
+
+  useEffect(() => {
+    if (!showZmel || zmel.length > 0) return;
+    let cancelled = false;
+    loadZmel()
+      .then((list) => { if (!cancelled) setZmel(list); })
+      .catch((e) => console.warn("Chargement des corps-morts impossible", e));
+    return () => { cancelled = true; };
+  }, [showZmel, zmel.length]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -2822,6 +2878,8 @@ const startPicking = (target) => {
                 showFishFarms={showFishFarms}
                 showAnchorages={showAnchorages}
                 anchorages={anchorages}
+                showZmel={showZmel}
+                zmel={zmel}
                 pickMode={!!pickTarget}
                 onPickLocation={handlePickLocation}
                 trails={trails}
@@ -3459,10 +3517,14 @@ const startPicking = (target) => {
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
         <div className="relative flex" style={{ gap: 10 }}>
           {showLayersMenu && (
-            <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
+            <div className="absolute rounded-xl p-2 flex gap-2" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", maxWidth: "96vw", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
               <button onClick={() => setShowAnchorages((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showAnchorages ? 1 : 0.4 }}>
                 <span style={{ width: 52, height: 52, borderRadius: "50%", background: ANCHORAGE_COLOR, border: "2px solid #1A1405", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: ANCHOR_SVG_HTML.replace('width="16" height="16"', 'width="26" height="26"') }} />
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Mouillages</span>
+              </button>
+              <button onClick={() => setShowZmel((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showZmel ? 1 : 0.4 }}>
+                <span style={{ width: 52, height: 52, borderRadius: "50%", background: ZMEL_COLOR, border: "2px solid #1B1238", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: ZMEL_SVG_HTML.replace('width="16" height="16"', 'width="26" height="26"') }} />
+                <span className="text-xs font-medium" style={{ color: COLORS.text }}>Corps-morts</span>
               </button>
               <button onClick={() => setShowShipyards((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showShipyards ? 1 : 0.4 }}>
                 <span style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.green, border: "2px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🛠️</span>
