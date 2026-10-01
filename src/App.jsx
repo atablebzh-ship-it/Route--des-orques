@@ -913,6 +913,9 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     // Marqueurs utilisateurs : vert = actif, cyan = actif et dans ton convoi, rouge (estompé,
     // pointillé) = inactif depuis plus de 15 min — bien plus visible que l'ancien gris,
     // notamment sur fond de carte clair/satellite.
+    // Taille de l'épingle selon le zoom : petite quand on voit toute la façade, plus grande de près.
+    const zl = mapZoom != null ? mapZoom : 6;
+    const pinW = zl < 6 ? 22 : zl < 8 ? 28 : zl < 11 ? 34 : 42;
     others.forEach((b) => {
       if (b.lat == null || b.lon == null) return;
       const inMyConvoy = myConvoyMemberIds.includes(b.id);
@@ -924,8 +927,8 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       window.L.marker([b.lat, b.lon], {
         icon: window.L.divIcon({
           className: "",
-          html: pinHtml(b.avatar || DEFAULT_AVATAR, c, inMyConvoy ? COLORS.cyan : "#1A1A1A"),
-          iconSize: [60, 80], iconAnchor: [30, 77],
+          html: pinHtml(b.avatar || DEFAULT_AVATAR, c, inMyConvoy ? COLORS.cyan : "#1A1A1A", pinW),
+          iconSize: [pinW, Math.round((pinW * 4) / 3)], iconAnchor: [pinW / 2, Math.round((pinW * 4) / 3 * 0.96)],
         }),
       })
         .bindTooltip(boatDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
@@ -1178,7 +1181,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
           .addTo(layer);
       });
     }
-  }, [pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, trails, showTrails, myBoatId, isModerator]);
+  }, [pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, trails, showTrails, myBoatId, isModerator, mapZoom]);
 
   // Centre/zoome la carte et ouvre la bulle du marqueur correspondant quand on clique
   // sur une alerte dans la liste (géolocalisation visuelle demandée depuis l'onglet Alertes).
