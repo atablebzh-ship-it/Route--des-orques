@@ -2,7 +2,7 @@ import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers, Share2 } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
-import { AvatarPicker, markerHtml, DEFAULT_AVATAR } from "./avatars.jsx";
+import { AvatarPicker, markerHtml, pinHtml, DEFAULT_AVATAR } from "./avatars.jsx";
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -906,14 +906,16 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     others.forEach((b) => {
       if (b.lat == null || b.lon == null) return;
       const inMyConvoy = myConvoyMemberIds.includes(b.id);
-      const c = b.stale ? COLORS.red : inMyConvoy ? COLORS.cyan : COLORS.green;
+      // Activité : vert = actif (< 15 min), orange = vu il y a moins d'1 h, rouge = inactif (> 1 h).
+      const ageMs = now - b.updatedAt;
+      const c = ageMs < STALE_MS ? COLORS.green : ageMs < 60 * 60 * 1000 ? COLORS.orange : COLORS.red;
       const boatDesc = `${b.pseudo} · ${b.boatName}${b.stale ? " · inactif" : ""}`;
-      // Logo choisi par l'utilisateur (ou photo) ; l'anneau garde la couleur de statut.
+      // Épingle façon Google Maps, logo noir ; contour cyan si le bateau est dans mon convoi.
       window.L.marker([b.lat, b.lon], {
         icon: window.L.divIcon({
           className: "",
-          html: markerHtml(b.avatar || DEFAULT_AVATAR, c, b.stale),
-          iconSize: [34, 34], iconAnchor: [17, 17],
+          html: pinHtml(b.avatar || DEFAULT_AVATAR, c, inMyConvoy ? COLORS.cyan : "#1A1A1A"),
+          iconSize: [60, 80], iconAnchor: [30, 77],
         }),
       })
         .bindTooltip(boatDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
