@@ -29,12 +29,12 @@ const iconSvg = (id, size) =>
 
 // Marqueur "épingle" façon Google Maps : corps coloré selon l'activité (vert / orange / rouge),
 // logo en noir posé directement dessus (ou photo dans un rond). `outline` = contour (cyan si dans mon convoi).
-export function pinHtml(avatar, fill, outline = "#1A1A1A") {
+export function pinHtml(avatar, fill, outline = "#1A1A1A", w = 60) {
   const body = `<path d="M24 62C10 44 4 34 4 22a20 20 0 1 1 40 0c0 12-6 22-20 40z" fill="${fill}" stroke="${outline}" stroke-width="3" stroke-linejoin="round"/>`;
   const inner = isPhotoAvatar(avatar)
     ? `<defs><clipPath id="pinclip"><circle cx="24" cy="22" r="14"/></clipPath></defs><circle cx="24" cy="22" r="15.5" fill="#fff"/><image href="${avatar}" x="10" y="8" width="28" height="28" preserveAspectRatio="xMidYMid slice" clip-path="url(#pinclip)"/>`
     : `<svg x="8" y="6" width="32" height="32" viewBox="0 0 32 32">${(ICONS[avatar] || ICONS[DEFAULT_AVATAR]).split("#0B2A4A").join("#0A0A0A").split("#0B0F14").join("#0A0A0A")}</svg>`;
-  return `<svg width="60" height="80" viewBox="0 0 48 64" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))" aria-hidden="true">${body}${inner}</svg>`;
+  return `<svg width="${w}" height="${Math.round((w * 4) / 3)}" viewBox="0 0 48 64" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))" aria-hidden="true">${body}${inner}</svg>`;
 }
 
 // HTML d'un marqueur Leaflet (L.divIcon). `ringColor` = statut (vert/cyan/rouge), inchangé.
