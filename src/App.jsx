@@ -2,7 +2,7 @@ import SeoContent from './SeoContent';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Anchor, AlertTriangle, MessageCircle, Send, Compass, Users, X, Plus, LocateFixed, LogOut, Waves, Check, Clock, Flag, Download, Trash2, Pencil, Layers, Share2 } from "lucide-react";
 import { storage, supabase } from "./lib/storage.js";
-import { AvatarPicker, markerHtml, DEFAULT_AVATAR } from "./avatars.jsx";
+import { AvatarPicker, markerHtml, pinHtml, DEFAULT_AVATAR } from "./avatars.jsx";
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -724,6 +724,24 @@ async function loadUserMoorings() {
   return data || [];
 }
 
+// Marqueur de mouillage "rond sombre" : fond bleu nuit, anneau de couleur (jaune = mouillage OSM,
+// violet = corps-mort, bleu roi pointillé = proposition d'utilisateur) et pictogramme de la même
+// couleur. Au zoom éloigné : simple point (centaines de zones). Forme volontairement différente
+// de l'épingle des bateaux.
+const MOORING_DARK = "#0B1B33";
+const recolorGlyph = (html, color, size) => html.replace(/stroke="#[0-9A-Fa-f]{6}"/, `stroke="${color}"`).replace('width="16" height="16"', `width="${size}" height="${size}"`);
+function mooringMarker(lat, lon, ring, glyphHtml, detailed, dashed = false) {
+  if (!detailed) {
+    return window.L.circleMarker([lat, lon], { radius: 6, color: ring, weight: 3, dashArray: dashed ? "3 3" : null, fillColor: MOORING_DARK, fillOpacity: 1 });
+  }
+  const icon = window.L.divIcon({
+    className: "",
+    html: `<div style="width:30px;height:30px;box-sizing:border-box;border-radius:50%;background:${MOORING_DARK};border:3px ${dashed ? "dashed" : "solid"} ${ring};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.45)">${recolorGlyph(glyphHtml, ring, 16)}</div>`,
+    iconSize: [30, 30], iconAnchor: [15, 15],
+  });
+  return window.L.marker([lat, lon], { icon });
+}
+
 function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, showAnchorages, anchorages, showZmel, zmel, userMoorings, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
@@ -791,20 +809,12 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     layer.clearLayers();
     if (!showAnchorages || !anchorages || anchorages.length === 0) return;
     const detailed = (mapZoom != null ? mapZoom : map.getZoom()) >= 9;
-    const anchorIcon = window.L.divIcon({
-      html: `<div style="background:${ANCHORAGE_COLOR};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #1A1405;">${ANCHOR_SVG_HTML}</div>`,
-      className: "",
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-    });
     anchorages.forEach((a) => {
       const title = a.name || ANCHORAGE_CATEGORY_LABELS[a.cat] || "Zone de mouillage";
       const catLine = a.name && ANCHORAGE_CATEGORY_LABELS[a.cat] ? `<div class="orca-tooltip-meta">${ANCHORAGE_CATEGORY_LABELS[a.cat]}</div>` : "";
       const infoLine = a.info ? `<div class="orca-tooltip-notes">${escHtml(a.info)}</div>` : "";
       const tip = `<div class="orca-tooltip-title">⚓ ${escHtml(title)}</div>${catLine}<div class="orca-tooltip-meta">${fmtDegMin(a.lat, true)} ${fmtDegMin(a.lon, false)}</div>${infoLine}<div class="orca-tooltip-notes">Source : OpenSeaMap / OpenStreetMap — à vérifier sur place</div>`;
-      const marker = detailed
-        ? window.L.marker([a.lat, a.lon], { icon: anchorIcon })
-        : window.L.circleMarker([a.lat, a.lon], { radius: 5, color: "#1A1405", weight: 1.5, fillColor: ANCHORAGE_COLOR, fillOpacity: 0.95 });
+      const marker = mooringMarker(a.lat, a.lon, ANCHORAGE_COLOR, ANCHOR_SVG_HTML, detailed);
       marker.bindTooltip(tip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 }).addTo(layer);
     });
   }, [showAnchorages, anchorages, mapZoom]);
@@ -819,14 +829,14 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     const layer = zmelLayerRef.current;
     layer.clearLayers();
     if (!showZmel || !zmel || zmel.length === 0) return;
-    const radius = (mapZoom != null ? mapZoom : map.getZoom()) >= 11 ? 8 : 5;
+    const detailedZ = (mapZoom != null ? mapZoom : map.getZoom()) >= 11;
     zmel.forEach((z) => {
       const title = z.site || z.commune || "Zone de corps-morts";
       const typeLine = `<div class="orca-tooltip-meta">${escHtml(z.commune ? z.commune + " · " : "")}${escHtml(z.type || "Zone de mouillage")}</div>`;
       const capLine = z.cap ? `<div class="orca-tooltip-meta">Capacité : ${z.cap} bateaux</div>` : "";
       const whoLine = z.who || z.until ? `<div class="orca-tooltip-notes">${z.who ? "Titulaire : " + escHtml(z.who) : ""}${z.who && z.until ? " · " : ""}${z.until ? "échéance " + z.until : ""}</div>` : "";
       const tip = `<div class="orca-tooltip-title">⚓ ${escHtml(title)}</div>${typeLine}${capLine}${whoLine}<div class="orca-tooltip-notes">Mouillages organisés sous autorisation : places en général réservées, voir le gestionnaire.</div><div class="orca-tooltip-notes">Source : ${escHtml(ZMEL_PRODUCERS[z.src] || "État")} — Licence Ouverte 2.0</div>`;
-      window.L.circleMarker([z.lat, z.lon], { radius, color: "#1B1238", weight: 1.5, fillColor: ZMEL_COLOR, fillOpacity: 0.9 })
+      mooringMarker(z.lat, z.lon, ZMEL_COLOR, ZMEL_SVG_HTML, detailedZ)
         .bindTooltip(tip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
         .addTo(layer);
     });
@@ -842,7 +852,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     const group = window.L.layerGroup();
     userMoorings.forEach((m) => {
       const ok = m.status === "approved";
-      const marker = window.L.circleMarker([m.lat, m.lon], { radius: mapZoom >= 11 ? 9 : 6, color: "#1A1405", weight: 2, dashArray: ok ? null : "3 3", fillColor: USER_MOORING_COLOR, fillOpacity: 0.95 });
+      const marker = mooringMarker(m.lat, m.lon, USER_MOORING_COLOR, ANCHOR_SVG_HTML, mapZoom >= 11, !ok);
       const shelter = (m.shelter || []).length ? `<div class="orca-tooltip-meta">Abrité de : ${escHtml((m.shelter || []).join(", "))}</div>` : "";
       const bottom = m.bottom ? ` · fond ${escHtml(MOORING_BOTTOM_LABEL[m.bottom] || m.bottom)}` : "";
       const tip = `<div class="orca-tooltip-title">⚓ ${escHtml(m.name)}</div><div class="orca-tooltip-meta">${escHtml(MOORING_KIND_LABEL[m.kind] || m.kind)}${bottom}</div>${shelter}<div class="orca-tooltip-notes">${ok ? "Proposé par un utilisateur, validé" : "⚠ À vérifier — proposé par un utilisateur"}${m.pseudo ? " (" + escHtml(m.pseudo) + ")" : ""}</div>`;
@@ -906,14 +916,16 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
     others.forEach((b) => {
       if (b.lat == null || b.lon == null) return;
       const inMyConvoy = myConvoyMemberIds.includes(b.id);
-      const c = b.stale ? COLORS.red : inMyConvoy ? COLORS.cyan : COLORS.green;
+      // Activité : vert = actif (< 15 min), orange = vu il y a moins d'1 h, rouge = inactif (> 1 h).
+      const ageMs = now - b.updatedAt;
+      const c = ageMs < STALE_MS ? COLORS.green : ageMs < 60 * 60 * 1000 ? COLORS.orange : COLORS.red;
       const boatDesc = `${b.pseudo} · ${b.boatName}${b.stale ? " · inactif" : ""}`;
-      // Logo choisi par l'utilisateur (ou photo) ; l'anneau garde la couleur de statut.
+      // Épingle façon Google Maps, logo noir ; contour cyan si le bateau est dans mon convoi.
       window.L.marker([b.lat, b.lon], {
         icon: window.L.divIcon({
           className: "",
-          html: markerHtml(b.avatar || DEFAULT_AVATAR, c, b.stale),
-          iconSize: [34, 34], iconAnchor: [17, 17],
+          html: pinHtml(b.avatar || DEFAULT_AVATAR, c, inMyConvoy ? COLORS.cyan : "#1A1A1A"),
+          iconSize: [60, 80], iconAnchor: [30, 77],
         }),
       })
         .bindTooltip(boatDesc, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 })
@@ -3621,11 +3633,11 @@ const openConvoyForm = () => {
           {showLayersMenu && (
             <div className="absolute rounded-xl p-2 flex gap-2" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", maxWidth: "96vw", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
               <button onClick={() => setShowAnchorages((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showAnchorages ? 1 : 0.4 }}>
-                <span style={{ width: 52, height: 52, borderRadius: "50%", background: ANCHORAGE_COLOR, border: "2px solid #1A1405", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: ANCHOR_SVG_HTML.replace('width="16" height="16"', 'width="26" height="26"') }} />
+                <span style={{ width: 52, height: 52, borderRadius: "50%", background: MOORING_DARK, border: `4px solid ${ANCHORAGE_COLOR}`, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: recolorGlyph(ANCHOR_SVG_HTML, ANCHORAGE_COLOR, 26) }} />
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Mouillages</span>
               </button>
               <button onClick={() => setShowZmel((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showZmel ? 1 : 0.4 }}>
-                <span style={{ width: 52, height: 52, borderRadius: "50%", background: ZMEL_COLOR, border: "2px solid #1B1238", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: ZMEL_SVG_HTML.replace('width="16" height="16"', 'width="26" height="26"') }} />
+                <span style={{ width: 52, height: 52, borderRadius: "50%", background: MOORING_DARK, border: `4px solid ${ZMEL_COLOR}`, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: recolorGlyph(ZMEL_SVG_HTML, ZMEL_COLOR, 26) }} />
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Corps-morts</span>
               </button>
               <button onClick={() => setShowShipyards((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showShipyards ? 1 : 0.4 }}>
