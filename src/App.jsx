@@ -1482,6 +1482,10 @@ export default function RouteDesOrques() {
   const [zmel, setZmel] = useState([]);
   const [userMoorings, setUserMoorings] = useState([]);
   const [showMooringForm, setShowMooringForm] = useState(false);
+  const [showModeration, setShowModeration] = useState(false);
+  const [modEdit, setModEdit] = useState(null); // {id,name,kind} pendant une correction
+  const [modBusy, setModBusy] = useState(null);
+  const [modFocus, setModFocus] = useState(null);
   const [mooringDraft, setMooringDraft] = useState({ lat: null, lon: null, name: "", kind: "", bottom: "", shelter: [] });
   const [mooringSaving, setMooringSaving] = useState(false);
   const [mooringMsg, setMooringMsg] = useState("");
@@ -2970,6 +2974,15 @@ const openConvoyForm = () => {
     setShowLayersMenu(false);
     setTab((prev) => (prev === name ? "carte" : name));
   };
+  const pendingMoorings = userMoorings.filter((m) => m.status === "pending");
+  const moderateMooring = async (id, patch) => {
+    setModBusy(id);
+    const { error } = await supabase.from("mooring_proposals").update(patch).eq("id", id);
+    setModBusy(null);
+    if (error) { alert("Action impossible : " + error.message); return; }
+    setUserMoorings((list) => list.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+    setModEdit(null);
+  };
   const toggleLayersMenu = () => {
     setTab("carte");
     setShowLayersMenu((v) => !v);
@@ -3004,6 +3017,7 @@ const openConvoyForm = () => {
                 myBoatId={profile.id}
                 isModerator={!!profile.isModerator}
                 onDeleteAlert={deleteAlert}
+                focusTarget={modFocus}
                 mapStyle={mapStyle}
                 onJoinConvoy={onJoinConvoy}
               />
@@ -3657,6 +3671,12 @@ const openConvoyForm = () => {
                 </span>
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Élevage</span>
               </button>
+              {profile.isModerator && (
+                <button onClick={() => { setShowModeration(true); setShowLayersMenu(false); }} className="flex flex-col items-center gap-1">
+                  <span style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", background: MOORING_DARK, border: `4px dashed ${USER_MOORING_COLOR}`, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: recolorGlyph(ANCHOR_SVG_HTML, USER_MOORING_COLOR, 26) + (pendingMoorings.length ? `<b style="position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;background:#2F5BFF;color:#fff;font-size:12px;line-height:20px;text-align:center">${pendingMoorings.length}</b>` : "") }} />
+                  <span className="text-xs font-medium" style={{ color: COLORS.text }}>À valider</span>
+                </button>
+              )}
             </div>
           )}
           {/* Plus d'onglet "Carte" dédié : la carte est la vue de base, toujours visible en
@@ -3686,6 +3706,63 @@ const openConvoyForm = () => {
           <span dangerouslySetInnerHTML={{ __html: ANCHOR_SVG_HTML.replace('width="16" height="16"', 'width="20" height="20"') }} />
           Ajouter un mouillage
         </button>
+      )}
+
+      {showModeration && profile.isModerator && (
+        <div className="fixed inset-0 z-[1400] overflow-y-auto" style={{ background: COLORS.bg || "#0F2237" }}>
+          <div className="mx-auto w-full max-w-sm p-4">
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={() => setShowModeration(false)} className="text-sm" style={{ color: COLORS.cyan }}>← Retour</button>
+              <h3 className="font-medium text-sm" style={{ color: COLORS.text, fontFamily: "Oswald, sans-serif" }}>PROPOSITIONS À VALIDER</h3>
+              <span className="text-xs font-bold rounded-full px-3 py-1" style={{ background: USER_MOORING_COLOR, color: "#fff" }}>{pendingMoorings.length}</span>
+            </div>
+            {pendingMoorings.length === 0 && <p className="text-sm text-center mt-10" style={{ color: COLORS.muted }}>Aucune proposition en attente.</p>}
+            {pendingMoorings.map((m) => {
+              const editing = modEdit && modEdit.id === m.id;
+              const busy = modBusy === m.id;
+              return (
+                <div key={m.id} className="rounded-xl p-3 mb-3" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, opacity: busy ? 0.6 : 1 }}>
+                  {editing ? (
+                    <div className="mb-2">
+                      <input value={modEdit.name} onChange={(e) => setModEdit({ ...modEdit, name: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm mb-2" style={{ background: "#0F2237", color: COLORS.text, border: `1px solid ${COLORS.border}` }} />
+                      <div className="flex gap-2 flex-wrap">
+                        {MOORING_KINDS.map((k) => (
+                          <button key={k.key} onClick={() => setModEdit({ ...modEdit, kind: k.key })} className="text-xs rounded-full px-3 py-1" style={{ background: modEdit.kind === k.key ? USER_MOORING_COLOR : "transparent", color: COLORS.text, border: `1px solid ${COLORS.border}` }}>{k.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="font-semibold text-base" style={{ color: ANCHORAGE_COLOR }}>⚓ {m.name}</div>
+                      <div className="text-xs mt-1" style={{ color: COLORS.muted }}>
+                        {m.pseudo || "?"} · {MOORING_KIND_LABEL[m.kind] || m.kind}{m.bottom ? " · " + (MOORING_BOTTOM_LABEL[m.bottom] || m.bottom) : ""}
+                        {(m.shelter || []).length ? " · abrité " + m.shelter.join(" ") : ""}
+                      </div>
+                      <div className="text-xs mt-1" style={{ color: COLORS.muted }}>{fmtDegMin(m.lat, true)} · {fmtDegMin(m.lon, false)}</div>
+                    </>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    {editing ? (
+                      <>
+                        <button disabled={busy || !modEdit.name.trim()} onClick={() => moderateMooring(m.id, { name: modEdit.name.trim(), kind: modEdit.kind, status: "approved" })} className="flex-1 rounded-full py-2 text-sm font-semibold" style={{ background: COLORS.green, color: "#fff" }}>Enregistrer et valider</button>
+                        <button onClick={() => setModEdit(null)} className="rounded-full px-4 py-2 text-sm" style={{ background: "#35597F", color: "#fff" }}>Annuler</button>
+                      </>
+                    ) : (
+                      <>
+                        <button disabled={busy} onClick={() => moderateMooring(m.id, { status: "approved" })} className="flex-1 rounded-full py-2 text-sm font-semibold" style={{ background: COLORS.green, color: "#fff" }}>✓ Valider</button>
+                        <button disabled={busy} onClick={() => moderateMooring(m.id, { status: "rejected" })} className="flex-1 rounded-full py-2 text-sm font-semibold" style={{ background: "#C0453B", color: "#fff" }}>✕ Rejeter</button>
+                        <button disabled={busy} onClick={() => setModEdit({ id: m.id, name: m.name, kind: m.kind })} className="flex-1 rounded-full py-2 text-sm font-semibold" style={{ background: "#35597F", color: "#fff" }}>Corriger</button>
+                      </>
+                    )}
+                  </div>
+                  {!editing && (
+                    <button onClick={() => { setModFocus({ id: "mooring-" + m.id, lat: m.lat, lon: m.lon }); setShowModeration(false); setShowAnchorages(true); }} className="text-xs mt-2" style={{ color: COLORS.cyan }}>Voir sur la carte</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {showMooringForm && (
