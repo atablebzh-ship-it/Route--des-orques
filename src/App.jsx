@@ -242,6 +242,27 @@ const SEA_LANE = [
   { name: "Gibraltar", lat: 36.12, lon: -5.4 },
 ];
 
+// Mouillages de la façade atlantique Brest → Gibraltar. Les données sont dans
+// public/mouillages.json (chargé à la demande, voir loadAnchorages) : zones de mouillage
+// balisées OpenSeaMap/OpenStreetMap (licence ODbL). Chaque entrée = [lat, lon, nom, catégorie,
+// info, id OSM]. La couverture est très inégale (dense en France, clairsemée en Espagne et au
+// Portugal) : le fichier est conçu pour être complété (contributions, autres sources).
+const ANCHORAGE_COLOR = "#F2D060";
+const ANCHORAGE_CATEGORY_LABELS = {
+  unrestricted: "Zone de mouillage",
+  small_craft: "Mouillage petits bateaux",
+  small_craft_mooring: "Mouillage petits bateaux",
+  "merchant ship": "Mouillage navires de commerce",
+};
+const ANCHOR_SVG_HTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A1405" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2V21"/><path d="M8 11h8"/><path d="M4.5 14c.6 4 3.4 7 7.5 7s6.9-3 7.5-7"/></svg>`;
+
+async function loadAnchorages() {
+  const res = await fetch("/mouillages.json");
+  if (!res.ok) throw new Error("mouillages.json HTTP " + res.status);
+  const data = await res.json();
+  return (data.items || []).map((r) => ({ lat: r[0], lon: r[1], name: r[2], cat: r[3], info: r[4], id: r[5] }));
+}
+
 // Chantiers navals / réparateurs (haul-out, urgences) sur la zone Brest → Gibraltar/Cadix
 const SHIPYARDS = [
   { name: "Port de Brest — Réparation Navale", address: "Brest, France", lat: 48.3876, lon: -4.4591, phone: "+33 2 98 14 77 59" },
@@ -638,7 +659,7 @@ function FishNetIcon({ size = 20, color = "#000000" }) {
 }
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
+function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, showAnchorages, anchorages, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
@@ -648,6 +669,8 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
   const alertMarkersRef = useRef({});
   const baseLayerRef = useRef(null);
   const labelsLayerRef = useRef(null);
+  const anchorLayerRef = useRef(null);
+  const [mapZoom, setMapZoom] = useState(null);
   const [centerCoord, setCenterCoord] = useState(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
   useEffect(() => { onPickLocationRef.current = onPickLocation; }, [onPickLocation]);
@@ -675,14 +698,47 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       }
     });
     map.on("move", () => setCenterCoord(map.getCenter()));
+    map.on("zoomend", () => setMapZoom(map.getZoom()));
+    setMapZoom(map.getZoom());
     setCenterCoord(map.getCenter());
     mapRef.current = map;
     return () => {
       map.remove();
       mapRef.current = null;
+      anchorLayerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Couche "Mouillages" (Brest → Gibraltar) : calque dédié, redessiné seulement quand la
+  // couche est activée/désactivée, quand les données arrivent ou quand le niveau de zoom
+  // change. Zoom éloigné = petits points (la Bretagne compte plus de 200 zones, des icônes
+  // pleines formeraient une tache) ; zoom rapproché = pastille avec ancre.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !window.L) return;
+    if (!anchorLayerRef.current) anchorLayerRef.current = window.L.layerGroup().addTo(map);
+    const layer = anchorLayerRef.current;
+    layer.clearLayers();
+    if (!showAnchorages || !anchorages || anchorages.length === 0) return;
+    const detailed = (mapZoom != null ? mapZoom : map.getZoom()) >= 9;
+    const anchorIcon = window.L.divIcon({
+      html: `<div style="background:${ANCHORAGE_COLOR};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #1A1405;">${ANCHOR_SVG_HTML}</div>`,
+      className: "",
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+    anchorages.forEach((a) => {
+      const title = a.name || ANCHORAGE_CATEGORY_LABELS[a.cat] || "Zone de mouillage";
+      const catLine = a.name && ANCHORAGE_CATEGORY_LABELS[a.cat] ? `<div class="orca-tooltip-meta">${ANCHORAGE_CATEGORY_LABELS[a.cat]}</div>` : "";
+      const infoLine = a.info ? `<div class="orca-tooltip-notes">${a.info.replace(/</g, "&lt;")}</div>` : "";
+      const tip = `<div class="orca-tooltip-title">⚓ ${title.replace(/</g, "&lt;")}</div>${catLine}<div class="orca-tooltip-meta">${fmtDegMin(a.lat, true)} ${fmtDegMin(a.lon, false)}</div>${infoLine}<div class="orca-tooltip-notes">Source : OpenSeaMap / OpenStreetMap — à vérifier sur place</div>`;
+      const marker = detailed
+        ? window.L.marker([a.lat, a.lon], { icon: anchorIcon })
+        : window.L.circleMarker([a.lat, a.lon], { radius: 5, color: "#1A1405", weight: 1.5, fillColor: ANCHORAGE_COLOR, fillOpacity: 0.95 });
+      marker.bindTooltip(tip, { direction: "top", sticky: true, className: "orca-tooltip", opacity: 1 }).addTo(layer);
+    });
+  }, [showAnchorages, anchorages, mapZoom]);
 
   // Fond de carte : rue (OpenStreetMap) ou satellite (Esri World Imagery), au choix de
   // l'utilisateur. Toujours en dessous de la surcouche OpenSeaMap (zIndex 2 > 1).
@@ -1292,6 +1348,8 @@ export default function RouteDesOrques() {
   const [showShipyards, setShowShipyards] = useState(false); // masqués au départ pour alléger la carte (menu Couches)
   const [showFishFarms, setShowFishFarms] = useState(false);
   const [showRescueStations, setShowRescueStations] = useState(false);
+  const [showAnchorages, setShowAnchorages] = useState(true); // mouillages affichés au départ (avec les orques) ; les autres couches restent en option
+  const [anchorages, setAnchorages] = useState([]);
   const [showLayersMenu, setShowLayersMenu] = useState(false);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
@@ -1364,6 +1422,16 @@ export default function RouteDesOrques() {
   const seenChatIdsRef = useRef(null);
   const seenDmIdsRef = useRef(null);
   useEffect(() => { tabRef.current = tab; }, [tab]);
+
+  // Mouillages : chargés une seule fois, dès que la couche est affichée (fichier statique).
+  useEffect(() => {
+    if (!showAnchorages || anchorages.length > 0) return;
+    let cancelled = false;
+    loadAnchorages()
+      .then((list) => { if (!cancelled) setAnchorages(list); })
+      .catch((e) => console.warn("Chargement des mouillages impossible", e));
+    return () => { cancelled = true; };
+  }, [showAnchorages, anchorages.length]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -2752,6 +2820,8 @@ const startPicking = (target) => {
                 showShipyards={showShipyards}
                 showRescueStations={showRescueStations}
                 showFishFarms={showFishFarms}
+                showAnchorages={showAnchorages}
+                anchorages={anchorages}
                 pickMode={!!pickTarget}
                 onPickLocation={handlePickLocation}
                 trails={trails}
@@ -3390,6 +3460,10 @@ const startPicking = (target) => {
         <div className="relative flex" style={{ gap: 10 }}>
           {showLayersMenu && (
             <div className="absolute rounded-xl p-3 flex gap-3" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
+              <button onClick={() => setShowAnchorages((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showAnchorages ? 1 : 0.4 }}>
+                <span style={{ width: 52, height: 52, borderRadius: "50%", background: ANCHORAGE_COLOR, border: "2px solid #1A1405", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: ANCHOR_SVG_HTML.replace('width="16" height="16"', 'width="26" height="26"') }} />
+                <span className="text-xs font-medium" style={{ color: COLORS.text }}>Mouillages</span>
+              </button>
               <button onClick={() => setShowShipyards((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showShipyards ? 1 : 0.4 }}>
                 <span style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.green, border: "2px solid #0A1F14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🛠️</span>
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Chantiers</span>
