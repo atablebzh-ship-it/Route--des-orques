@@ -679,7 +679,52 @@ function FishNetIcon({ size = 20, color = "#000000" }) {
 }
 
 // --- Carte marine réelle (Leaflet + OpenStreetMap + OpenSeaMap), chargée via CDN dans index.html ---
-function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, showAnchorages, anchorages, showZmel, zmel, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
+// --- Mouillages proposés par les utilisateurs (table Supabase mooring_proposals) ---
+const MOORING_KINDS = [
+  { key: "corps_mort", label: "Corps-mort" },
+  { key: "ponton", label: "Ponton" },
+  { key: "deconseille", label: "Déconseillé" },
+];
+const MOORING_BOTTOMS = [
+  { key: "sable", label: "Sable" },
+  { key: "vase", label: "Vase" },
+  { key: "roche", label: "Roche" },
+  { key: "herbier", label: "Herbier" },
+];
+const WIND_DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+const USER_MOORING_COLOR = "#FFB84D";
+const MOORING_KIND_LABEL = Object.fromEntries(MOORING_KINDS.map((k) => [k.key, k.label]));
+const MOORING_BOTTOM_LABEL = Object.fromEntries(MOORING_BOTTOMS.map((k) => [k.key, k.label]));
+
+// Rose des vents à 16 secteurs : on touche les secteurs d'où le mouillage est abrité.
+function WindRose({ selected, onToggle, size = 190 }) {
+  const c = size / 2, R = size / 2 - 22;
+  const sector = (k) => {
+    const a0 = ((k * 22.5 - 11.25 - 90) * Math.PI) / 180, a1 = ((k * 22.5 + 11.25 - 90) * Math.PI) / 180;
+    return `M${c} ${c}L${c + R * Math.cos(a0)} ${c + R * Math.sin(a0)}A${R} ${R} 0 0 1 ${c + R * Math.cos(a1)} ${c + R * Math.sin(a1)}Z`;
+  };
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ touchAction: "manipulation" }}>
+      {WIND_DIRS.map((d, k) => (
+        <path key={d} d={sector(k)} onClick={() => onToggle(d)} style={{ cursor: "pointer" }}
+          fill={selected.includes(d) ? "#F2D060" : COLORS.panelAlt} stroke={COLORS.panel} strokeWidth="2.5" />
+      ))}
+      <circle cx={c} cy={c} r={R * 0.28} fill={COLORS.panel} style={{ pointerEvents: "none" }} />
+      {["N", "NE", "E", "SE", "S", "SO", "O", "NO"].map((d) => {
+        const a = ((WIND_DIRS.indexOf(d) * 22.5 - 90) * Math.PI) / 180;
+        return <text key={d} x={c + (R + 13) * Math.cos(a)} y={c + (R + 13) * Math.sin(a) + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill={d.length === 1 ? COLORS.text : COLORS.muted} style={{ pointerEvents: "none" }}>{d}</text>;
+      })}
+    </svg>
+  );
+}
+
+async function loadUserMoorings() {
+  const { data, error } = await supabase.from("mooring_proposals").select("id,lat,lon,name,kind,bottom,shelter,pseudo,status,user_id").limit(2000);
+  if (error) throw error;
+  return data || [];
+}
+
+function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, now, onSelectBoat, showShipyards, showRescueStations, showFishFarms, showAnchorages, anchorages, showZmel, zmel, userMoorings, pickMode, onPickLocation, trails, showTrails, myBoatId, isModerator, onDeleteAlert, focusTarget, mapStyle, onJoinConvoy }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);  const pickModeRef = useRef(pickMode);
@@ -691,6 +736,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
   const labelsLayerRef = useRef(null);
   const anchorLayerRef = useRef(null);
   const zmelLayerRef = useRef(null);
+  const userMooringLayerRef = useRef(null);
   const [mapZoom, setMapZoom] = useState(null);
   const [centerCoord, setCenterCoord] = useState(null);
   useEffect(() => { pickModeRef.current = pickMode; }, [pickMode]);
@@ -728,6 +774,7 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
       mapRef.current = null;
       anchorLayerRef.current = null;
       zmelLayerRef.current = null;
+      userMooringLayerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -784,6 +831,27 @@ function MarineMap({ pos, others, alertsWithDist, convoys, myConvoyMemberIds, no
         .addTo(layer);
     });
   }, [showZmel, zmel, mapZoom]);
+
+  // Mouillages proposés par les utilisateurs : bordure pointillée orange + mention "à vérifier"
+  // tant que la proposition n'est pas validée, pour ne jamais les confondre avec les données officielles.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !window.L) return;
+    if (userMooringLayerRef.current) { map.removeLayer(userMooringLayerRef.current); userMooringLayerRef.current = null; }
+    if (!showAnchorages || !userMoorings || userMoorings.length === 0) return;
+    const group = window.L.layerGroup();
+    userMoorings.forEach((m) => {
+      const ok = m.status === "approved";
+      const marker = window.L.circleMarker([m.lat, m.lon], { radius: mapZoom >= 11 ? 9 : 6, color: "#1A1405", weight: 2, dashArray: ok ? null : "3 3", fillColor: USER_MOORING_COLOR, fillOpacity: 0.95 });
+      const shelter = (m.shelter || []).length ? `<div class="orca-tooltip-meta">Abrité de : ${escHtml((m.shelter || []).join(", "))}</div>` : "";
+      const bottom = m.bottom ? ` · fond ${escHtml(MOORING_BOTTOM_LABEL[m.bottom] || m.bottom)}` : "";
+      const tip = `<div class="orca-tooltip-title">⚓ ${escHtml(m.name)}</div><div class="orca-tooltip-meta">${escHtml(MOORING_KIND_LABEL[m.kind] || m.kind)}${bottom}</div>${shelter}<div class="orca-tooltip-notes">${ok ? "Proposé par un utilisateur, validé" : "⚠ À vérifier — proposé par un utilisateur"}${m.pseudo ? " (" + escHtml(m.pseudo) + ")" : ""}</div>`;
+      marker.bindTooltip(tip, { direction: "top", className: "orca-tooltip" });
+      marker.addTo(group);
+    });
+    group.addTo(map);
+    userMooringLayerRef.current = group;
+  }, [showAnchorages, userMoorings, mapZoom]);
 
   // Fond de carte : rue (OpenStreetMap) ou satellite (Esri World Imagery), au choix de
   // l'utilisateur. Toujours en dessous de la surcouche OpenSeaMap (zIndex 2 > 1).
@@ -1397,6 +1465,11 @@ export default function RouteDesOrques() {
   const [anchorages, setAnchorages] = useState([]);
   const [showZmel, setShowZmel] = useState(false); // corps-morts organisés (ZMEL) : masqués au départ, ce ne sont pas des places libres
   const [zmel, setZmel] = useState([]);
+  const [userMoorings, setUserMoorings] = useState([]);
+  const [showMooringForm, setShowMooringForm] = useState(false);
+  const [mooringDraft, setMooringDraft] = useState({ lat: null, lon: null, name: "", kind: "", bottom: "", shelter: [] });
+  const [mooringSaving, setMooringSaving] = useState(false);
+  const [mooringMsg, setMooringMsg] = useState("");
   const [showLayersMenu, setShowLayersMenu] = useState(false);
   const [visibleSpecies, setVisibleSpecies] = useState({ orque: true, dauphin: true, tortue: true });
   const [mapStyle, setMapStyle] = useState("street"); // "street" | "satellite"
@@ -1488,6 +1561,12 @@ export default function RouteDesOrques() {
       .catch((e) => console.warn("Chargement des corps-morts impossible", e));
     return () => { cancelled = true; };
   }, [showZmel, zmel.length]);
+
+  // Propositions des utilisateurs : chargées une fois la session ouverte.
+  useEffect(() => {
+    if (!session) return;
+    loadUserMoorings().then(setUserMoorings).catch((e) => console.warn("Mouillages proposés indisponibles (table absente ?)", e));
+  }, [session]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -2342,6 +2421,12 @@ if (p) {
   if (pickTarget === "rdv") { setCvRdvLat(lat); setCvRdvLon(lon); }
   if (pickTarget === "dest") { setCvDestLat(lat); setCvDestLon(lon); }
   if (pickTarget === "alert") { setAlertLat(lat); setAlertLon(lon); }
+  if (pickTarget === "mooring") {
+    setMooringDraft((d) => ({ ...d, lat, lon }));
+    setPickTarget(null);
+    setShowMooringForm(true);
+    return;
+  }
   const wasAlert = pickTarget === "alert";
   setPickTarget(null);
   if (wasAlert) {
@@ -2359,7 +2444,23 @@ const startPicking = (target) => {
   setShowAlertForm(false);
   setShowLayersMenu(false);
   setTab("carte");
-};const openConvoyForm = () => {
+};const openMooringForm = () => {
+  setMooringMsg("");
+  setMooringDraft({ lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, name: "", kind: "", bottom: "", shelter: [] });
+  setShowLayersMenu(false);
+  if (pos) setShowMooringForm(true); else startPicking("mooring");
+};
+const submitMooring = async () => {
+  const d = mooringDraft;
+  if (d.lat == null || d.name.trim().length < 2 || !d.kind) { setMooringMsg("Indique la position, le nom du lieu et le type."); return; }
+  setMooringSaving(true); setMooringMsg("");
+  const { data, error } = await supabase.from("mooring_proposals").insert({ lat: d.lat, lon: d.lon, name: d.name.trim(), kind: d.kind, bottom: d.bottom || null, shelter: d.shelter, pseudo: profile?.pseudo || null }).select().single();
+  setMooringSaving(false);
+  if (error) { setMooringMsg("Envoi impossible pour le moment. Réessaie plus tard."); console.warn(error); return; }
+  setUserMoorings((l) => [...l, data]);
+  setShowMooringForm(false);
+};
+const openConvoyForm = () => {
     setCvRdvLat(pos?.lat ?? null);
     setCvRdvLon(pos?.lon ?? null);
     setRdvSuggestions([]);
@@ -2880,6 +2981,7 @@ const startPicking = (target) => {
                 anchorages={anchorages}
                 showZmel={showZmel}
                 zmel={zmel}
+                userMoorings={userMoorings}
                 pickMode={!!pickTarget}
                 onPickLocation={handlePickLocation}
                 trails={trails}
@@ -3562,6 +3664,74 @@ const startPicking = (target) => {
           <IconBtn onClick={toggleLayersMenu} active={showLayersMenu} label="Couches" text="Couches"><Layers size={18} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
+
+      {tab === "carte" && !pickTarget && !showMooringForm && !showAlertForm && !showLayersMenu && session && (
+        <button onClick={openMooringForm} className="absolute z-[1150] flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold"
+          style={{ right: 16, bottom: 112, background: "#F2D060", color: "#0B1B33", boxShadow: "0 4px 14px rgba(0,0,0,0.45)" }}>
+          <span dangerouslySetInnerHTML={{ __html: ANCHOR_SVG_HTML.replace('width="16" height="16"', 'width="20" height="20"') }} />
+          Ajouter un mouillage
+        </button>
+      )}
+
+      {showMooringForm && (
+        <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }}>
+          <div className="w-full max-w-sm rounded-t-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, maxHeight: "92vh", overflowY: "auto" }}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-medium text-sm" style={{ color: "#F2D060", fontFamily: "Oswald, sans-serif" }}>⚓ NOUVEAU MOUILLAGE</h3>
+              <button onClick={() => setShowMooringForm(false)}><X size={18} style={{ color: COLORS.muted }} /></button>
+            </div>
+            <p className="text-xs mb-3" style={{ color: COLORS.muted }}>
+              {mooringDraft.lat != null ? `${fmtDegMin(mooringDraft.lat, true)} · ${fmtDegMin(mooringDraft.lon, false)}` : "Position à choisir"}
+              {" · "}
+              <button type="button" className="underline" style={{ color: COLORS.cyan }} onClick={() => { setShowMooringForm(false); startPicking("mooring"); }}>Modifier</button>
+            </p>
+            <Field label="Nom du lieu">
+              <input value={mooringDraft.name} maxLength={80} onChange={(e) => setMooringDraft((d) => ({ ...d, name: e.target.value }))}
+                placeholder="Baie de …" className="w-full px-3 py-2 rounded outline-none text-sm" style={inputStyle} />
+            </Field>
+            <div className="h-3" />
+            <Field label="Type">
+              <div className="flex flex-wrap gap-2">
+                {MOORING_KINDS.map((k) => (
+                  <button key={k.key} type="button" onClick={() => setMooringDraft((d) => ({ ...d, kind: k.key }))}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold"
+                    style={{ background: mooringDraft.kind === k.key ? "#F2D060" : "transparent", color: mooringDraft.kind === k.key ? "#0B1B33" : COLORS.text, border: `1px solid ${mooringDraft.kind === k.key ? "#F2D060" : COLORS.border}` }}>{k.label}</button>
+                ))}
+              </div>
+            </Field>
+            <div className="h-3" />
+            <Field label="Fond">
+              <div className="flex flex-wrap gap-2">
+                {MOORING_BOTTOMS.map((k) => (
+                  <button key={k.key} type="button" onClick={() => setMooringDraft((d) => ({ ...d, bottom: d.bottom === k.key ? "" : k.key }))}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold"
+                    style={{ background: mooringDraft.bottom === k.key ? "#F2D060" : "transparent", color: mooringDraft.bottom === k.key ? "#0B1B33" : COLORS.text, border: `1px solid ${mooringDraft.bottom === k.key ? "#F2D060" : COLORS.border}` }}>{k.label}</button>
+                ))}
+              </div>
+            </Field>
+            <div className="h-3" />
+            <Field label="Abrité des vents de (touche les secteurs)">
+              <div className="flex items-center gap-3">
+                <WindRose selected={mooringDraft.shelter} onToggle={(dir) => setMooringDraft((d) => ({ ...d, shelter: d.shelter.includes(dir) ? d.shelter.filter((x) => x !== dir) : [...d.shelter, dir] }))} />
+                <div className="flex-1 text-xs" style={{ color: COLORS.muted }}>
+                  <p>Choisi :</p>
+                  <p className="font-semibold text-sm mb-2" style={{ color: "#F2D060" }}>{mooringDraft.shelter.length ? WIND_DIRS.filter((x) => mooringDraft.shelter.includes(x)).join(" · ") : "—"}</p>
+                  <div className="flex gap-2">
+                    <button type="button" className="px-2 py-1 rounded-full" style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }} onClick={() => setMooringDraft((d) => ({ ...d, shelter: [...WIND_DIRS] }))}>Tous</button>
+                    <button type="button" className="px-2 py-1 rounded-full" style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }} onClick={() => setMooringDraft((d) => ({ ...d, shelter: [] }))}>Aucun</button>
+                  </div>
+                </div>
+              </div>
+            </Field>
+            {mooringMsg && <p className="text-xs mt-3" style={{ color: COLORS.orange }}>{mooringMsg}</p>}
+            <button onClick={submitMooring} disabled={mooringSaving} className="w-full mt-4 py-3 rounded-full text-sm font-bold"
+              style={{ background: "#F2D060", color: "#0B1B33", opacity: mooringSaving ? 0.6 : 1 }}>
+              {mooringSaving ? "Envoi…" : "Proposer ce mouillage"}
+            </button>
+            <p className="text-xs text-center mt-2" style={{ color: COLORS.muted }}>Affiché « à vérifier » en attendant validation.</p>
+          </div>
+        </div>
+      )}
 
       {showAlertForm && (
         <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }}>
