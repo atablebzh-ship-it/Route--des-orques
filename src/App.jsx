@@ -692,7 +692,7 @@ const MOORING_BOTTOMS = [
   { key: "herbier", label: "Herbier" },
 ];
 const WIND_DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-const USER_MOORING_COLOR = "#FFB84D";
+const USER_MOORING_COLOR = "#FF4FA3"; // rose vif : distinct du jaune (mouillages) et du violet (corps-morts)
 const MOORING_KIND_LABEL = Object.fromEntries(MOORING_KINDS.map((k) => [k.key, k.label]));
 const MOORING_BOTTOM_LABEL = Object.fromEntries(MOORING_BOTTOMS.map((k) => [k.key, k.label]));
 
