@@ -1551,6 +1551,10 @@ export default function RouteDesOrques() {
   const fileInputRef = useRef(null);
 
   const [gpsTracking, setGpsTracking] = useState(false);
+  // « Me cacher » : ma position n'est plus publiée (et mon bateau disparaît de la carte des autres).
+  const [masque, setMasque] = useState(() => { try { return localStorage.getItem("orca_hidden") === "1"; } catch (e) { return false; } });
+  const profileRef = useRef(null);
+  const publishMeRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastPublishRef = useRef(0);
 
@@ -1899,7 +1903,7 @@ if (p) {
 
   const publishMe = useCallback(
     async (overrides = {}) => {
-      if (!profile || !pos) return;
+      if (!profile || !pos || masque) return;
       setSaving(true);
       try {
         const lat = overrides.lat ?? pos.lat;
@@ -1932,8 +1936,10 @@ if (p) {
       } catch (e) {}
       setSaving(false);
     },
-    [profile, pos, heading, status]
+    [profile, pos, heading, status, masque]
   );
+  profileRef.current = profile;
+  publishMeRef.current = publishMe;
 
   const updateAlertRadius = async (km) => {
     if (!profile) return;
@@ -2084,15 +2090,17 @@ if (p) {
       </div>
     );
 
-  const toggleTracking = () => {
-    if (gpsTracking) {
-      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-      setGpsTracking(false);
-      return;
-    }
+  const stopTracking = () => {
+    if (watchIdRef.current != null && navigator.geolocation) navigator.geolocation.clearWatch(watchIdRef.current);
+    watchIdRef.current = null;
+    setGpsTracking(false);
+  };
+
+  // silent = démarrage automatique à l'ouverture : en cas de refus, on n'affiche aucune erreur.
+  const startTracking = (silent = false) => {
+    if (watchIdRef.current != null) return;
     if (!navigator.geolocation) {
-      setGeoError("La géolocalisation n'est pas disponible sur cet appareil.");
+      if (!silent) setGeoError("La géolocalisation n'est pas disponible sur cet appareil.");
       return;
     }
     const id = navigator.geolocation.watchPosition(
@@ -2103,16 +2111,55 @@ if (p) {
         const t = Date.now();
         if (t - lastPublishRef.current < 20000) return;
         lastPublishRef.current = t;
-        const updatedProfile = { ...profile, lastLat: lat, lastLon: lon };
+        const updatedProfile = { ...profileRef.current, lastLat: lat, lastLon: lon };
         setProfile(updatedProfile);
         storage.set("profile", JSON.stringify(updatedProfile), false).catch(() => {});
-        publishMe({ lat, lon });
+        publishMeRef.current && publishMeRef.current({ lat, lon });
       },
-      () => setGeoError("Suivi GPS refusé ou indisponible sur cet appareil."),
+      (err) => {
+        if (!silent) setGeoError(geoErrorMessage(err));
+        if (err && err.code === 1) { // permission refusée : on arrête là, sans insister
+          if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+          setGpsTracking(false);
+        }
+      },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
     watchIdRef.current = id;
     setGpsTracking(true);
+  };
+
+  const toggleTracking = () => {
+    if (gpsTracking) {
+      stopTracking();
+      try { localStorage.setItem("orca_autotrack", "0"); } catch (e) {} // l'utilisateur l'a coupé : on ne le relance pas tout seul
+      return;
+    }
+    try { localStorage.removeItem("orca_autotrack"); } catch (e) {}
+    startTracking(false);
+  };
+
+  // Suivi automatique à l'ouverture (si connecté, pas caché, et pas coupé volontairement).
+  useEffect(() => {
+    if (!profile?.id) { stopTracking(); return; }
+    let coupe = false;
+    try { coupe = localStorage.getItem("orca_autotrack") === "0"; } catch (e) {}
+    if (masque || coupe) { stopTracking(); return; }
+    startTracking(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, masque]);
+
+  const toggleMasque = async () => {
+    const next = !masque;
+    setMasque(next);
+    try { localStorage.setItem("orca_hidden", next ? "1" : "0"); } catch (e) {}
+    if (!profile) return;
+    if (next) {
+      try { await supabase.from("boats").delete().eq("id", profile.id); } catch (e) {}
+    } else {
+      setTimeout(() => publishMeRef.current && publishMeRef.current(), 100);
+    }
   };
 
   useEffect(() => {
@@ -3530,6 +3577,25 @@ const openConvoyForm = () => {
                         }}>
                         {gpsTracking && <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />}
                         {gpsTracking ? "Actif" : "Activer"}
+                      </button>
+                    </div>
+                  </Panel>
+
+                  <Panel className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm" style={{ color: COLORS.text }}>Me cacher des autres</p>
+                        <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                          {masque ? "Caché — ta position n'est plus partagée et ton bateau n'apparaît plus sur la carte des autres" : "Ta position est visible des autres plaisanciers"}
+                        </p>
+                      </div>
+                      <button onClick={toggleMasque} className="px-3 py-1.5 rounded text-xs shrink-0"
+                        style={{
+                          background: masque ? COLORS.orange : "transparent",
+                          color: masque ? "#1A0E08" : COLORS.muted,
+                          border: `1px solid ${masque ? COLORS.orange : COLORS.border}`,
+                        }}>
+                        {masque ? "Caché" : "Visible"}
                       </button>
                     </div>
                   </Panel>
