@@ -1496,7 +1496,8 @@ export default function RouteDesOrques() {
     try { localStorage.setItem("orca_dist_unit", u); } catch (e) {}
   };
   const [alertFocus, setAlertFocus] = useState(null);
-  const [showTrails, setShowTrails] = useState(true);
+  // Trace des bateaux désactivée pour l'instant (elle coupait par la terre) : on garde le code, mais jamais affichée.
+  const showTrails = false;
   const [trails, setTrails] = useState({});
   const [showConvoyForm, setShowConvoyForm] = useState(false);
   const [alertCount, setAlertCount] = useState("");
@@ -3529,25 +3530,6 @@ const openConvoyForm = () => {
                         }}>
                         {gpsTracking && <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ background: "#0A1F14" }} />}
                         {gpsTracking ? "Actif" : "Activer"}
-                      </button>
-                    </div>
-                  </Panel>
-
-                  <Panel className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm" style={{ color: COLORS.text }}>Trace sur la carte</p>
-                        <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-                          Affiche le trajet récent de chaque bateau (moi et les autres) — les points sont cliquables (heure, position, vitesse/cap)
-                        </p>
-                      </div>
-                      <button onClick={() => setShowTrails((v) => !v)} className="px-3 py-1.5 rounded text-xs flex items-center gap-1 shrink-0"
-                        style={{
-                          background: showTrails ? COLORS.cyanDim : "transparent",
-                          color: showTrails ? COLORS.cyan : COLORS.muted,
-                          border: `1px solid ${showTrails ? COLORS.cyanDim : COLORS.border}`,
-                        }}>
-                        {showTrails ? "Visible" : "Masquée"}
                       </button>
                     </div>
                   </Panel>
