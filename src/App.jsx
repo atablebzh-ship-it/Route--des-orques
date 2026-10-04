@@ -1476,7 +1476,7 @@ export default function RouteDesOrques() {
   const [showShipyards, setShowShipyards] = useState(false); // masqués au départ pour alléger la carte (menu Couches)
   const [showFishFarms, setShowFishFarms] = useState(false);
   const [showRescueStations, setShowRescueStations] = useState(false);
-  const [showAnchorages, setShowAnchorages] = useState(true); // mouillages affichés au départ (avec les orques) ; les autres couches restent en option
+  const [showAnchorages, setShowAnchorages] = useState(false); // comme les autres couches : carte vide au départ, mouillages à activer dans le menu Couches
   const [anchorages, setAnchorages] = useState([]);
   const [showZmel, setShowZmel] = useState(false); // corps-morts organisés (ZMEL) : masqués au départ, ce ne sont pas des places libres
   const [zmel, setZmel] = useState([]);
@@ -3616,7 +3616,15 @@ const openConvoyForm = () => {
       <div className="absolute left-0 right-0 z-[1200] flex justify-center px-4" style={{ bottom: 20 }}>
         <div className="relative flex" style={{ gap: 10 }}>
           {showLayersMenu && (
-            <div className="absolute rounded-xl p-2 flex gap-2" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", maxWidth: "96vw", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
+            <div className="absolute rounded-xl p-2 flex flex-col gap-2" style={{ bottom: 88, left: "50%", transform: "translateX(-50%)", maxWidth: "96vw", background: "rgba(37,72,100,0.96)", border: `1px solid ${COLORS.border}`, backdropFilter: "blur(10px)" }}>
+              {showAnchorages && session && (
+                <button onClick={() => { setShowLayersMenu(false); openMooringForm(); }} className="flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
+                  style={{ background: "#F2D060", color: "#0B1B33" }}>
+                  <span dangerouslySetInnerHTML={{ __html: ANCHOR_SVG_HTML.replace('width="16" height="16"', 'width="18" height="18"') }} />
+                  Ajouter un mouillage
+                </button>
+              )}
+              <div className="flex gap-2">
               <button onClick={() => setShowAnchorages((v) => !v)} className="flex flex-col items-center gap-1" style={{ opacity: showAnchorages ? 1 : 0.4 }}>
                 <span style={{ width: 52, height: 52, borderRadius: "50%", background: MOORING_DARK, border: `4px solid ${ANCHORAGE_COLOR}`, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: recolorGlyph(ANCHOR_SVG_HTML, ANCHORAGE_COLOR, 26) }} />
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Mouillages</span>
@@ -3639,6 +3647,7 @@ const openConvoyForm = () => {
                 </span>
                 <span className="text-xs font-medium" style={{ color: COLORS.text }}>Élevage</span>
               </button>
+              </div>
             </div>
           )}
           {/* Plus d'onglet "Carte" dédié : la carte est la vue de base, toujours visible en
@@ -3661,14 +3670,6 @@ const openConvoyForm = () => {
           <IconBtn onClick={toggleLayersMenu} active={showLayersMenu} label="Couches" text="Couches"><Layers size={18} color={COLORS.cyan} /></IconBtn>
         </div>
       </div>
-
-      {tab === "carte" && !pickTarget && !showMooringForm && !showAlertForm && !showLayersMenu && session && (
-        <button onClick={openMooringForm} className="absolute z-[1150] flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold"
-          style={{ right: 16, bottom: 112, background: "#F2D060", color: "#0B1B33", boxShadow: "0 4px 14px rgba(0,0,0,0.45)" }}>
-          <span dangerouslySetInnerHTML={{ __html: ANCHOR_SVG_HTML.replace('width="16" height="16"', 'width="20" height="20"') }} />
-          Ajouter un mouillage
-        </button>
-      )}
 
       {showMooringForm && (
         <div className="fixed inset-0 flex items-end justify-center z-[1300]" style={{ background: "rgba(0,0,0,0.6)" }}>
